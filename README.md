@@ -2,6 +2,20 @@
 
 Sistema de venta y gestión de entradas para un complejo de cine. Trabajo Práctico N.º 1 de Programación IV (UTN, 2026 C2).
 
+**Aplicación en línea:** https://cine-nova-seven.vercel.app
+**Código:** https://github.com/tobitortosa/cine-nova
+
+### Cuentas de prueba
+
+| Rol | Email | Contraseña | Para ver |
+|---|---|---|---|
+| Administrador | `admin@cinenova.app` | `admin1234` | Panel completo, reportes y log de actividad |
+| Empleado | `empleado@cinenova.app` | `empleado1234` | Pantalla de validación de QR |
+| Cliente | `cliente@cinenova.app` | `cliente1234` | Compra con puntos y $5.000 de crédito |
+| Cliente mayor de 50 | `mayor@cinenova.app` | `mayor1234` | Cupón `PLATEA50` por edad |
+
+También se puede comprar sin registrarse. Cupones disponibles: `BIENVENIDA` (20 %, primera compra), `PLATEA50` (25 %, mayores de 50), `JUBILADOS` (35 %, mayores de 65).
+
 La aplicación cubre los tres frentes que pidió el cliente: el sitio público donde se compran entradas y productos del candy bar, el panel de administración que controla toda la operación, y la pantalla que usan los empleados para validar los códigos QR en la puerta de la sala y en el mostrador.
 
 ## Stack
