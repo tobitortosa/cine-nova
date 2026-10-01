@@ -1,4 +1,13 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  OnInit,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { PromocionesService } from '../../core/services/promociones.service';
@@ -24,6 +33,8 @@ export class PuntosComponent implements OnInit {
   private readonly promociones = inject(PromocionesService);
   private readonly auth = inject(AuthService);
   private readonly avisos = inject(NotificacionesService);
+  private readonly anfitrion = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   readonly exacto = { exact: true };
 
@@ -34,8 +45,17 @@ export class PuntosComponent implements OnInit {
   readonly confirmando = signal(false);
   readonly canjeando = signal(false);
   readonly elegida = signal<Recompensa | null>(null);
+  readonly recienCreado = signal<number | null>(null);
 
   readonly puntos = computed(() => this.auth.perfil()?.puntos ?? 0);
+
+  readonly paraUsar = computed(() =>
+    this.canjes().filter((canje) => !canje.usado && !this.dadoDeBaja(canje)),
+  );
+
+  readonly noDisponibles = computed(() =>
+    this.canjes().filter((canje) => !canje.usado && this.dadoDeBaja(canje)),
+  );
 
   readonly proxima = computed(() => {
     const disponibles = this.puntos();
@@ -69,7 +89,7 @@ export class PuntosComponent implements OnInit {
 
     const restantes = Math.max(0, this.puntos() - recompensa.costo_puntos);
 
-    return `Vas a canjear "${recompensa.nombre}" por ${this.numero(recompensa.costo_puntos)} puntos. Te van a quedar ${this.numero(restantes)} puntos y el canje no se puede deshacer.`;
+    return `Vas a canjear "${recompensa.nombre}" por ${this.numero(recompensa.costo_puntos)} puntos. Los puntos se descuentan en el momento (te van a quedar ${this.numero(restantes)}) y se genera un código para usar en el paso Pagar de tu próxima compra. Si después cancelás esa compra, el canje vuelve a quedar disponible.`;
   });
 
   private readonly formatoNumero = new Intl.NumberFormat('es-AR');
@@ -80,6 +100,12 @@ export class PuntosComponent implements OnInit {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+  });
+
+  private readonly formatoFechaCorta = new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   });
 
   async ngOnInit(): Promise<void> {
@@ -116,6 +142,17 @@ export class PuntosComponent implements OnInit {
     return this.formatoFecha.format(momento);
   }
 
+  etiquetaUso(canje: Canje): string {
+    const momento = canje.usado_en ? new Date(canje.usado_en) : null;
+    if (!momento || Number.isNaN(momento.getTime())) return 'Usado';
+
+    return `Usado el ${this.formatoFechaCorta.format(momento)}`;
+  }
+
+  dadoDeBaja(canje: Canje): boolean {
+    return canje.tipo === 'producto' && canje.producto_id === null;
+  }
+
   alcanza(recompensa: Recompensa): boolean {
     return this.puntos() >= recompensa.costo_puntos;
   }
@@ -134,16 +171,38 @@ export class PuntosComponent implements OnInit {
     this.canjeando.set(true);
 
     try {
-      await this.promociones.canjear(recompensa.id);
-      this.avisos.exito(`¡Canjeaste ${recompensa.nombre}!`);
+      const nuevo = await this.promociones.canjear(recompensa.id);
 
-      await this.auth.refrescarPerfil();
-      this.canjes.set(await this.promociones.misCanjes());
+      this.canjes.update((lista) => [nuevo, ...lista.filter((canje) => canje.id !== nuevo.id)]);
+      this.recienCreado.set(nuevo.id);
+      this.avisos.exito(`¡Listo! Tu código es ${nuevo.codigo}`);
+      this.mostrarRecienCreado();
+
+      await this.sincronizar();
     } catch (e) {
       this.avisos.error(e instanceof Error ? e.message : 'No pudimos canjear la recompensa');
     } finally {
       this.canjeando.set(false);
       this.elegida.set(null);
     }
+  }
+
+  private async sincronizar(): Promise<void> {
+    try {
+      const [canjes] = await Promise.all([this.promociones.misCanjes(), this.auth.refrescarPerfil()]);
+      this.canjes.set(canjes);
+    } catch (e) {
+      this.avisos.error(e instanceof Error ? e.message : 'No pudimos actualizar tus puntos');
+    }
+  }
+
+  private mostrarRecienCreado(): void {
+    afterNextRender(
+      () => {
+        const tarjeta = this.anfitrion.nativeElement.querySelector('.cupon.nuevo');
+        tarjeta?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      },
+      { injector: this.injector },
+    );
   }
 }

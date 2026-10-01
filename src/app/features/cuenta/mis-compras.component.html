@@ -73,7 +73,10 @@
               </div>
               <div>
                 <dt>Total</dt>
-                <dd class="acento">{{ compra.total | precio }}</dd>
+                <dd class="acento">
+                  {{ compra.total | precio }}
+                  <span class="medio-pago">{{ compra | medioPago: 'corto' }}</span>
+                </dd>
               </div>
               <div>
                 <dt>Código</dt>

@@ -2,6 +2,11 @@
   <div class="contenedor pantalla-estado">
     <app-cargando texto="Preparando tu función..." />
   </div>
+} @else if (ventaCerrada()) {
+  <div class="contenedor pantalla-estado">
+    <app-vacio titulo="La venta para esta película todavía no abrió" [texto]="textoApertura()" />
+    <a class="btn btn-primario" [routerLink]="['/peliculas', funcion()?.pelicula_id]">Ver la ficha de la película</a>
+  </div>
 } @else {
   @if (funcion(); as f) {
     <div class="contenedor compra">
@@ -24,7 +29,12 @@
             </svg>
             Volver a la película
           </a>
-          <h1>{{ f.pelicula?.titulo ?? 'Función' }}</h1>
+          <div class="titulo-fila">
+            <h1>{{ f.pelicula?.titulo ?? 'Función' }}</h1>
+            @if (enPreventa()) {
+              <span class="chip chip-preventa">Preventa</span>
+            }
+          </div>
           <p class="cuando">{{ fechaHora(f.inicio) }}</p>
           <div class="chips">
             <span class="chip chip-accent">{{ f.formato }}</span>
@@ -43,7 +53,7 @@
       <ol class="pasos">
         @for (etapa of etapas; track etapa.numero) {
           <li [class.activo]="paso() === etapa.numero" [class.hecho]="paso() > etapa.numero">
-            <button type="button" (click)="irAPaso(etapa.numero)">
+            <button type="button" [disabled]="procesando()" (click)="irAPaso(etapa.numero)">
               <span class="burbuja">{{ etapa.numero }}</span>
               <span class="nombre">{{ etapa.nombre }}</span>
             </button>
@@ -125,8 +135,8 @@
                 <li><span class="muestra elegida"></span> Elegida por vos</li>
                 <li><span class="muestra vendida"></span> Vendida</li>
                 <li><span class="muestra reservada"></span> Reservada por otra persona</li>
-                <li><span class="muestra"></span> Estándar · {{ f.precio_base | precio }}</li>
-                <li><span class="muestra vip"></span> VIP (filas R, S y T) · {{ f.precio_vip | precio }}</li>
+                <li><span class="muestra"></span> Estándar · {{ precioEstandar() | precio }}</li>
+                <li><span class="muestra vip"></span> VIP (filas R, S y T) · {{ precioVip() | precio }}</li>
                 <li>
                   <span class="muestra accesible">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -136,7 +146,7 @@
                       <path d="M15.5 16.5A5.5 5.5 0 1 1 9 11" />
                     </svg>
                   </span>
-                  Accesible (filas J y K) · {{ f.precio_base | precio }}
+                  Accesible (filas J y K) · {{ precioEstandar() | precio }}
                 </li>
               </ul>
             </div>
@@ -315,118 +325,494 @@
         }
 
         @default {
-          <section class="pago anim-aparecer">
-            <div class="detalle">
-              <h3>Tu pedido</h3>
+          <form class="pago anim-aparecer" [formGroup]="formulario" (ngSubmit)="confirmar()">
+            <div class="pago-principal">
+              <section class="panel">
+                <h3>Tu pedido</h3>
 
-              <div class="bloque-detalle">
-                <h4>Entradas</h4>
-                @for (butaca of elegidas(); track butaca.id) {
-                  <div class="linea">
-                    <span>
-                      Butaca {{ butaca | butaca }}
-                      <em>{{ etiquetaTipo(butaca.tipo) }}</em>
-                    </span>
-                    <strong>{{ carrito.precioDe(butaca) | precio }}</strong>
+                @if (enPreventa()) {
+                  <div class="nota-preventa">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" />
+                      <circle cx="7.5" cy="7.5" r="1.5" />
+                    </svg>
+                    <p>
+                      Estás comprando en preventa: el precio de cada entrada ya es el de preventa
+                      ({{ precioEstandar() | precio }} la estándar y {{ precioVip() | precio }} la VIP).
+                      @if (finPreventa(); as fin) {
+                        <strong>Vale hasta el {{ fin }}.</strong>
+                      }
+                    </p>
                   </div>
-                } @empty {
-                  <p class="pista">No hay butacas elegidas.</p>
                 }
-                <div class="linea parcial">
-                  <span>Subtotal entradas</span>
-                  <strong>{{ carrito.totalEntradas() | precio }}</strong>
-                </div>
-              </div>
 
-              <div class="bloque-detalle">
-                <h4>Candy bar</h4>
-                @for (item of carrito.items(); track $index) {
-                  <div class="linea">
-                    <span>{{ item.cantidad }} × {{ item.nombre }}</span>
-                    <strong>{{ item.cantidad * item.precio_unitario | precio }}</strong>
-                  </div>
-                } @empty {
-                  <p class="pista">No agregaste productos.</p>
-                }
-                <div class="linea parcial">
-                  <span>Subtotal productos</span>
-                  <strong>{{ carrito.totalProductos() | precio }}</strong>
-                </div>
-              </div>
-
-              <div class="funcion-mini">
-                <p><strong>{{ f.pelicula?.titulo ?? 'Función' }}</strong></p>
-                <p>{{ fechaHora(f.inicio) }} · {{ f.sala?.nombre ?? 'Sala' }} · {{ f.formato }} · {{ etiquetaIdioma(f) }}</p>
-              </div>
-            </div>
-
-            <form class="formulario" [formGroup]="formulario" (ngSubmit)="confirmar()">
-              <h3>Datos de la compra</h3>
-
-              <div class="campo">
-                <label for="email">Email de contacto</label>
-                <input id="email" type="email" formControlName="email" placeholder="vos@email.com" autocomplete="email" />
-                @if (formulario.controls.email.touched && formulario.controls.email.invalid) {
-                  <span class="error-campo">Escribí un email válido para enviarte la entrada</span>
-                }
-                @if (formulario.controls.email.disabled) {
-                  <span class="ayuda">Usamos el email de tu cuenta.</span>
-                }
-              </div>
-
-              @if (necesitaNacimiento()) {
-                <div class="campo">
-                  <label for="nacimiento">Fecha de nacimiento</label>
-                  <input id="nacimiento" type="date" formControlName="fechaNacimiento" />
-                  @if (formulario.controls.fechaNacimiento.touched && formulario.controls.fechaNacimiento.invalid) {
-                    <span class="error-campo">Necesitamos tu fecha de nacimiento para esta película</span>
+                <div class="bloque-detalle">
+                  <h4>Entradas</h4>
+                  @for (butaca of elegidas(); track butaca.id) {
+                    <div class="linea">
+                      <span>
+                        Butaca {{ butaca | butaca }}
+                        <em>{{ etiquetaTipo(butaca.tipo) }}</em>
+                      </span>
+                      <strong>{{ carrito.precioDe(butaca) | precio }}</strong>
+                    </div>
+                  } @empty {
+                    <p class="pista">No hay butacas elegidas.</p>
                   }
-                  <span class="ayuda">Esta función es para mayores de {{ restriccion() }} años.</span>
+                  <div class="linea parcial">
+                    <span>Subtotal entradas</span>
+                    <strong>{{ carrito.totalEntradas() | precio }}</strong>
+                  </div>
                 </div>
-              }
 
-              @if (auth.estaLogueado()) {
-                <div class="campo cupon">
-                  <label for="cupon">Cupón de descuento</label>
-                  <div class="fila-cupon">
-                    <input id="cupon" type="text" formControlName="cupon" placeholder="CINENOVA10" />
-                    @if (cuponAplicado()) {
-                      <button type="button" class="btn btn-fantasma" (click)="quitarCupon()">Quitar</button>
-                    } @else {
-                      <button type="button" class="btn btn-secundario" [disabled]="aplicandoCupon()" (click)="aplicarCupon()">
-                        {{ aplicandoCupon() ? 'Validando...' : 'Aplicar' }}
-                      </button>
+                <div class="bloque-detalle">
+                  <h4>Candy bar</h4>
+                  @for (item of carrito.items(); track $index) {
+                    <div class="linea">
+                      <span>{{ item.cantidad }} × {{ item.nombre }}</span>
+                      <strong>{{ item.cantidad * item.precio_unitario | precio }}</strong>
+                    </div>
+                  }
+                  @for (canjeado of productosCanjeados(); track canjeado.codigo) {
+                    <div class="linea canjeado">
+                      <span>1 × {{ canjeado.nombre }} (canje)</span>
+                      <strong>{{ 0 | precio }}</strong>
+                    </div>
+                  }
+                  @if (carrito.items().length === 0 && productosCanjeados().length === 0) {
+                    <p class="pista">No agregaste productos.</p>
+                  }
+                  <div class="linea parcial">
+                    <span>Subtotal productos</span>
+                    <strong>{{ carrito.totalProductos() | precio }}</strong>
+                  </div>
+                </div>
+
+                <div class="funcion-mini">
+                  <p><strong>{{ f.pelicula?.titulo ?? 'Función' }}</strong></p>
+                  <p>{{ fechaHora(f.inicio) }} · {{ f.sala?.nombre ?? 'Sala' }} · {{ f.formato }} · {{ etiquetaIdioma(f) }}</p>
+                </div>
+              </section>
+
+              <section class="panel">
+                <h3>Tus datos</h3>
+
+                <div class="campo">
+                  <label for="email">Email de contacto</label>
+                  <input id="email" type="email" formControlName="email" placeholder="vos@email.com" autocomplete="email" />
+                  @if (formulario.controls.email.touched && formulario.controls.email.invalid) {
+                    <span class="error-campo">Escribí un email válido para enviarte la entrada</span>
+                  }
+                  @if (emailDeCuenta()) {
+                    <span class="ayuda">Usamos el email de tu cuenta.</span>
+                  }
+                </div>
+
+                @if (necesitaNacimiento()) {
+                  <div class="campo">
+                    <label for="nacimiento">Fecha de nacimiento</label>
+                    <input id="nacimiento" type="date" formControlName="fechaNacimiento" />
+                    @if (formulario.controls.fechaNacimiento.touched && formulario.controls.fechaNacimiento.invalid) {
+                      <span class="error-campo">Necesitamos tu fecha de nacimiento para esta película</span>
+                    }
+                    <span class="ayuda">Esta función es para mayores de {{ restriccion() }} años.</span>
+                  </div>
+                }
+              </section>
+
+              <section class="panel">
+                <h3>Descuentos y beneficios</h3>
+
+                @if (auth.estaLogueado()) {
+                  <div class="campo cupon">
+                    <label for="cupon">Cupón de descuento</label>
+                    <div class="fila-cupon">
+                      <input
+                        id="cupon"
+                        type="text"
+                        formControlName="cupon"
+                        placeholder="CINENOVA10"
+                        (keydown.enter)="$event.preventDefault(); aplicarCupon()"
+                      />
+                      @if (cuponAplicado()) {
+                        <button type="button" class="btn btn-fantasma" [disabled]="procesando()" (click)="quitarCupon()">Quitar</button>
+                      } @else {
+                        <button type="button" class="btn btn-secundario" [disabled]="aplicandoCupon() || procesando()" (click)="aplicarCupon()">
+                          {{ aplicandoCupon() ? 'Validando...' : 'Aplicar' }}
+                        </button>
+                      }
+                    </div>
+                    @if (cuponAplicado(); as cupon) {
+                      <span class="ok-campo">{{ cupon.codigo }} aplicado · {{ cupon.porcentaje }}% de descuento</span>
                     }
                   </div>
-                  @if (cuponAplicado(); as cupon) {
-                    <span class="ok-campo">{{ cupon.codigo }} aplicado · {{ cupon.porcentaje }}% de descuento</span>
-                  }
-                </div>
 
-                @if (creditoDisponible() > 0) {
-                  <label class="checkbox">
-                    <input type="checkbox" formControlName="usarCredito" />
-                    <span>
-                      Usar mi crédito
-                      <em>Tenés {{ creditoDisponible() | precio }} disponibles</em>
-                    </span>
-                  </label>
+                  @if (creditoDisponible() > 0) {
+                    <label class="checkbox">
+                      <input type="checkbox" formControlName="usarCredito" />
+                      <span>
+                        Usar mi crédito
+                        <em>Tenés {{ creditoDisponible() | precio }} disponibles</em>
+                      </span>
+                    </label>
+                  }
+
+                  @if (canjesVista().length > 0) {
+                    <div class="canjes">
+                      <div class="canjes-cabecera">
+                        <h4>Tus canjes de puntos</h4>
+                        <span>
+                          {{ canjesAplicados().length }}
+                          {{ canjesAplicados().length === 1 ? 'elegido' : 'elegidos' }}
+                        </span>
+                      </div>
+
+                      <ul class="lista-canjes">
+                        @for (vista of canjesVista(); track vista.canje.codigo) {
+                          <li>
+                            <label class="canje" [class.elegido]="vista.elegido" [class.bloqueado]="vista.bloqueado">
+                              <input
+                                type="checkbox"
+                                [checked]="vista.elegido"
+                                [disabled]="procesando() || vista.bloqueado"
+                                (change)="alternarCanje(vista)"
+                              />
+                              <span class="icono-canje" [class.entrada]="vista.esEntrada" aria-hidden="true">
+                                @if (vista.esEntrada) {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" />
+                                    <path d="M14 6v12" stroke-dasharray="2 2" />
+                                  </svg>
+                                } @else {
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M6 9h12l-1.2 11H7.2L6 9z" />
+                                    <path d="M7 9a2.5 2.5 0 0 1 2-4 3 3 0 0 1 6 0 2.5 2.5 0 0 1 2 4" />
+                                  </svg>
+                                }
+                              </span>
+                              <span class="texto-canje">
+                                <strong>{{ vista.titulo }}</strong>
+                                <small>
+                                  @if (vista.esEntrada) {
+                                    Descuenta {{ precioEstandar() | precio }}, el valor de una entrada estándar
+                                  } @else {
+                                    Se suma a tu pedido sin cargo
+                                  }
+                                </small>
+                              </span>
+                              <code class="codigo">{{ vista.canje.codigo }}</code>
+                            </label>
+                          </li>
+                        }
+                      </ul>
+
+                      @if (hayEntradasBloqueadas()) {
+                        <p class="nota-canjes">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="M12 11v5M12 8v.01" />
+                          </svg>
+                          Podés usar hasta {{ carrito.butacas().length }}
+                          {{ carrito.butacas().length === 1 ? 'canje' : 'canjes' }} de entrada: uno por cada
+                          butaca elegida. Sumá más butacas si querés usar los demás.
+                        </p>
+                      }
+                    </div>
+                  }
+                } @else {
+                  <p class="invitado">
+                    Comprás como invitado. <a routerLink="/auth/login">Ingresá a tu cuenta</a> para usar
+                    cupones, crédito, canjes de puntos y sumar puntos.
+                  </p>
                 }
-              } @else {
-                <p class="invitado">
-                  Comprás como invitado. <a routerLink="/auth/login">Ingresá a tu cuenta</a> para usar
-                  cupones, crédito y sumar puntos.
-                </p>
-              }
+              </section>
+
+              <section class="panel medio-pago">
+                <h3>Medio de pago</h3>
+
+                @if (total() > 0) {
+                  <div class="aviso-simulado">
+                    <div class="aviso-cabecera">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3 4.5 6v5.5c0 4.4 3.1 8.2 7.5 9.5 4.4-1.3 7.5-5.1 7.5-9.5V6L12 3z" />
+                        <path d="M9 12l2 2 4-4" />
+                      </svg>
+                      <p><strong>Pago simulado:</strong> no se realiza ningún cobro real.</p>
+                      <button
+                        type="button"
+                        class="desplegar"
+                        [class.abierto]="pruebasAbiertas()"
+                        [attr.aria-expanded]="pruebasAbiertas()"
+                        aria-controls="tarjetas-prueba"
+                        [disabled]="procesando()"
+                        (click)="alternarPruebas()"
+                      >
+                        Tarjetas de prueba
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    @if (pruebasAbiertas()) {
+                      <div id="tarjetas-prueba" class="pruebas anim-aparecer">
+                        <ul class="lista-pruebas">
+                          @for (prueba of tarjetasDePrueba; track prueba.numero) {
+                            <li>
+                              <button type="button" class="prueba" [disabled]="procesando()" (click)="usarTarjetaDePrueba(prueba)">
+                                <code>{{ prueba.numero }}</code>
+                                <span class="marca-prueba">{{ prueba.marca }}</span>
+                                <span class="resultado" [class.aprobada]="prueba.aprobada">{{ prueba.resultado }}</span>
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                        <p class="ayuda-pruebas">
+                          Tocá una para completar el número. Si el vencimiento y el titular están vacíos,
+                          también los completamos. Con Mercado Pago el pago siempre se aprueba.
+                        </p>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="medios" role="radiogroup" aria-label="Elegí cómo pagar">
+                    @for (opcion of mediosPago; track opcion.valor) {
+                      <label class="medio" [class.activo]="medioElegido() === opcion.valor">
+                        <input type="radio" formControlName="medio" [value]="opcion.valor" />
+                        <span class="icono-medio" aria-hidden="true">
+                          @switch (opcion.valor) {
+                            @case ('tarjeta_credito') {
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                                <path d="M2.5 9.5h19" />
+                                <path d="M6 15h4M14 15h4" />
+                              </svg>
+                            }
+                            @case ('tarjeta_debito') {
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                                <rect x="5.5" y="8.5" width="4.5" height="3.5" rx=".8" />
+                                <path d="M14.5 9.2a3 3 0 0 1 0 2.6M17 8a5.5 5.5 0 0 1 0 5" />
+                                <path d="M5.5 15.5h6" />
+                              </svg>
+                            }
+                            @default {
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 8V6.5A1.5 1.5 0 0 0 16.5 5H5.5A2.5 2.5 0 0 0 3 7.5" />
+                                <rect x="3" y="7.5" width="18" height="12" rx="2.5" />
+                                <path d="M21 11.5h-4a2 2 0 0 0 0 4h4" />
+                                <path d="M17 13.5h.01" />
+                              </svg>
+                            }
+                          }
+                        </span>
+                        <span class="texto-medio">
+                          <strong>{{ opcion.nombre }}</strong>
+                          <small>{{ opcion.detalle }}</small>
+                        </span>
+                        <span class="punto-medio" aria-hidden="true"></span>
+                      </label>
+                    }
+                  </div>
+
+                  @if (esTarjeta()) {
+                    <div class="tarjeta-pago anim-aparecer" formGroupName="tarjeta">
+                      <div
+                        class="vista-tarjeta"
+                        [class.visa]="marca() === 'Visa'"
+                        [class.mastercard]="marca() === 'Mastercard'"
+                        [class.amex]="marca() === 'American Express'"
+                        aria-hidden="true"
+                      >
+                        <div class="vista-superior">
+                          <span class="tipo-vista">{{ medioElegido() === 'tarjeta_debito' ? 'Débito' : 'Crédito' }}</span>
+                          <span class="logo">
+                            @switch (marca()) {
+                              @case ('Visa') {
+                                <span class="logo-visa">VISA</span>
+                              }
+                              @case ('Mastercard') {
+                                <svg class="logo-mc" viewBox="0 0 40 24">
+                                  <circle cx="15" cy="12" r="9" fill="#eb001b" fill-opacity=".9" />
+                                  <circle cx="25" cy="12" r="9" fill="#f79e1b" fill-opacity=".85" />
+                                </svg>
+                              }
+                              @case ('American Express') {
+                                <span class="logo-amex">AMEX</span>
+                              }
+                              @default {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                                  <path d="M8.5 7.5a6 6 0 0 1 0 9M12 5a9.5 9.5 0 0 1 0 14M15.5 3a13 13 0 0 1 0 18" />
+                                </svg>
+                              }
+                            }
+                          </span>
+                        </div>
+
+                        <span class="chip-tarjeta"></span>
+
+                        <div class="numero-vista">
+                          @for (bloque of numeroVista(); track $index) {
+                            <span>{{ bloque }}</span>
+                          }
+                        </div>
+
+                        <div class="vista-inferior">
+                          <div class="dato-vista">
+                            <small>Titular</small>
+                            <span>{{ tarjetaVista().titular.trim() || 'Nombre y apellido' }}</span>
+                          </div>
+                          <div class="dato-vista vence">
+                            <small>Vence</small>
+                            <span>{{ tarjetaVista().vencimiento || 'MM/AA' }}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="campos-tarjeta">
+                        <div class="campo">
+                          <div class="etiqueta-fila">
+                            <label for="numero-tarjeta">Número de la tarjeta</label>
+                            @if (marca(); as detectada) {
+                              <span class="chip chip-accent marca-detectada">{{ detectada }}</span>
+                            }
+                          </div>
+                          <input
+                            id="numero-tarjeta"
+                            class="mono"
+                            type="text"
+                            inputmode="numeric"
+                            autocomplete="cc-number"
+                            formControlName="numero"
+                            placeholder="4242 4242 4242 4242"
+                            maxlength="23"
+                            spellcheck="false"
+                          />
+                          @if (errorTarjeta('numero'); as mensaje) {
+                            <span class="error-campo">{{ mensaje }}</span>
+                          }
+                        </div>
+
+                        <div class="fila-doble">
+                          <div class="campo">
+                            <label for="vencimiento-tarjeta">Vencimiento</label>
+                            <input
+                              id="vencimiento-tarjeta"
+                              class="mono"
+                              type="text"
+                              inputmode="numeric"
+                              autocomplete="cc-exp"
+                              formControlName="vencimiento"
+                              placeholder="MM/AA"
+                              maxlength="5"
+                            />
+                            @if (errorTarjeta('vencimiento'); as mensaje) {
+                              <span class="error-campo">{{ mensaje }}</span>
+                            }
+                          </div>
+
+                          <div class="campo">
+                            <label for="cvv-tarjeta">CVV</label>
+                            <input
+                              id="cvv-tarjeta"
+                              class="mono"
+                              type="text"
+                              inputmode="numeric"
+                              autocomplete="cc-csc"
+                              formControlName="cvv"
+                              [attr.maxlength]="largoCodigo()"
+                              [placeholder]="largoCodigo() === 4 ? '1234' : '123'"
+                              [class.con-error]="errorTarjeta('cvv') !== null"
+                            />
+                            @if (errorTarjeta('cvv'); as mensaje) {
+                              <span class="error-campo">{{ mensaje }}</span>
+                            } @else {
+                              <span class="ayuda">{{ largoCodigo() }} dígitos, {{ largoCodigo() === 4 ? 'en el frente' : 'en el dorso' }}.</span>
+                            }
+                          </div>
+                        </div>
+
+                        <div class="campo">
+                          <label for="titular-tarjeta">Titular</label>
+                          <input
+                            id="titular-tarjeta"
+                            type="text"
+                            autocomplete="cc-name"
+                            autocapitalize="words"
+                            formControlName="titular"
+                            placeholder="Como figura en la tarjeta"
+                            spellcheck="false"
+                          />
+                          @if (errorTarjeta('titular'); as mensaje) {
+                            <span class="error-campo">{{ mensaje }}</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="panel-mp anim-aparecer">
+                      <span class="icono-mp" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+                          <path d="M10.5 18.5h3" />
+                          <path d="M9.5 10.5l2 2 3.5-3.5" />
+                        </svg>
+                      </span>
+                      <div>
+                        <strong>Pagás con tu cuenta de Mercado Pago</strong>
+                        <p>
+                          Simulamos el pago con tu cuenta de Mercado Pago: al tocar «Pagar» aprobamos el
+                          cobro al instante, sin salir de CineNova y sin pedirte datos de tarjeta.
+                        </p>
+                        <ol class="pasos-mp">
+                          <li>Tocá «Pagar».</li>
+                          <li>Simulamos la aprobación de Mercado Pago.</li>
+                          <li>Recibís tus entradas con el código QR.</li>
+                        </ol>
+                      </div>
+                    </div>
+                  }
+                } @else {
+                  <div class="sin-cargo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M8.5 12.5l2.5 2.5 4.5-5" />
+                    </svg>
+                    <p>
+                      <strong>No hay nada para cobrar:</strong> la compra queda cubierta por tus canjes y tu crédito.
+                    </p>
+                  </div>
+                }
+              </section>
+            </div>
+
+            <aside class="pago-resumen">
+              <h3>Resumen del pago</h3>
 
               <div class="totales">
-                <div class="linea">
-                  <span>Subtotal</span>
-                  <strong>{{ carrito.subtotal() | precio }}</strong>
-                </div>
+                @if (subtotal() > 0) {
+                  <div class="linea">
+                    <span>Subtotal</span>
+                    <strong>{{ subtotal() | precio }}</strong>
+                  </div>
+                }
+                @if (descuentoCanjes() > 0) {
+                  <div class="linea verde">
+                    <span>
+                      Canje de entradas
+                      <em>× {{ entradasCanjeadas() }}</em>
+                    </span>
+                    <strong>− {{ descuentoCanjes() | precio }}</strong>
+                  </div>
+                }
                 @if (descuento() > 0) {
                   <div class="linea verde">
-                    <span>Descuento</span>
+                    <span>
+                      Cupón
+                      @if (cuponAplicado(); as cupon) {
+                        <em>{{ cupon.codigo }} · {{ cupon.porcentaje }}%</em>
+                      }
+                    </span>
                     <strong>− {{ descuento() | precio }}</strong>
                   </div>
                 }
@@ -440,20 +826,69 @@
                   <span>Total a pagar</span>
                   <strong>{{ total() | precio }}</strong>
                 </div>
-                @if (auth.estaLogueado()) {
+                @if (puntosGanados() > 0) {
                   <p class="puntos">Vas a sumar <strong>{{ puntosGanados() }}</strong> puntos con esta compra.</p>
                 }
               </div>
 
+              @if (errorPago(); as error) {
+                <div class="error-pago anim-aparecer" role="alert">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7.5v5.5M12 16.5v.01" />
+                  </svg>
+                  <p>{{ error }}</p>
+                </div>
+              }
+
               <div class="acciones">
-                <button type="button" class="btn btn-secundario" [disabled]="procesando()" (click)="irAPaso(2)">Volver</button>
-                <button type="submit" class="btn btn-primario" [disabled]="procesando() || carrito.butacas().length === 0">
-                  {{ procesando() ? 'Procesando...' : 'Confirmar compra' }}
+                <button type="submit" class="btn btn-primario" [disabled]="procesando() || aplicandoCupon() || carrito.butacas().length === 0">
+                  @if (procesando()) {
+                    Procesando...
+                  } @else if (total() > 0) {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="5" y="11" width="14" height="9" rx="2" />
+                      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                    </svg>
+                    Pagar {{ total() | precio }}
+                  } @else {
+                    Confirmar sin cargo
+                  }
                 </button>
+                <button type="button" class="btn btn-secundario" [disabled]="procesando()" (click)="irAPaso(2)">Volver</button>
               </div>
-            </form>
-          </section>
+
+              <p class="seguridad">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                </svg>
+                El número completo y el CVV no se guardan: de tu tarjeta solo registramos la marca y los
+                últimos 4 dígitos.
+              </p>
+            </aside>
+          </form>
         }
+      }
+
+      @if (fasePago(); as fase) {
+        <div
+          class="capa-pago anim-aparecer"
+          role="alertdialog"
+          aria-modal="true"
+          [attr.aria-label]="fase === 'pago' ? 'Procesando el pago' : 'Confirmando tu compra'"
+        >
+          <div class="caja-pago anim-escalar">
+            <app-cargando [texto]="fase === 'pago' ? 'Procesando el pago...' : 'Confirmando tu compra...'" />
+            <strong class="monto-pago">{{ montoEnProceso() | precio }}</strong>
+            <p>
+              {{ fase === 'pago'
+                ? 'Estamos validando el pago con la pasarela simulada.'
+                : 'El pago fue aprobado. Estamos emitiendo tus entradas.' }}
+            </p>
+            <small>No cierres ni actualices esta página.</small>
+          </div>
+        </div>
       }
     </div>
   } @else {

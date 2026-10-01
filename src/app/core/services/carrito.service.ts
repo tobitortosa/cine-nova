@@ -1,5 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { Butaca, Funcion, ItemCarrito } from '../models/modelos';
+import { Butaca, Combo, Funcion, ItemCarrito, Producto } from '../models/modelos';
+import { precioEntrada } from '../../shared/utils/ventas';
 
 const CLAVE_CARRITO = 'cinenova_carrito';
 
@@ -80,6 +81,27 @@ export class CarritoService {
     this.guardar();
   }
 
+  sincronizarConCatalogo(productos: Producto[], combos: Combo[]): string[] {
+    const quitados: string[] = [];
+
+    const vigentes = this.items().flatMap((item) => {
+      const fuente = item.producto_id !== null
+        ? productos.find((producto) => producto.id === item.producto_id && producto.activo)
+        : combos.find((combo) => combo.id === item.combo_id && combo.activo);
+
+      if (!fuente) {
+        quitados.push(item.nombre);
+        return [];
+      }
+
+      return [{ ...item, nombre: fuente.nombre, precio_unitario: Number(fuente.precio), imagen_url: fuente.imagen_url }];
+    });
+
+    this.items.set(vigentes);
+    this.guardar();
+    return quitados;
+  }
+
   limpiar(): void {
     this.funcion.set(null);
     this.butacas.set([]);
@@ -92,11 +114,11 @@ export class CarritoService {
   }
 
   precioDe(b: Butaca): number {
-    const f = this.funcion();
-    if (!f) {
-      return 0;
-    }
-    return b.tipo === 'vip' ? f.precio_vip : f.precio_base;
+    return precioEntrada(this.funcion(), b.tipo);
+  }
+
+  precioEstandar(): number {
+    return precioEntrada(this.funcion(), 'estandar');
   }
 
   private guardar(): void {

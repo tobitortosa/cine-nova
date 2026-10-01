@@ -7,6 +7,7 @@ do $$ begin create type idioma_funcion  as enum ('castellano','subtitulada');   
 do $$ begin create type estado_compra   as enum ('pagada','cancelada');         exception when duplicate_object then null; end $$;
 do $$ begin create type tipo_cupon      as enum ('bienvenida','edad');          exception when duplicate_object then null; end $$;
 do $$ begin create type tipo_recompensa as enum ('entrada','producto');         exception when duplicate_object then null; end $$;
+do $$ begin create type medio_pago      as enum ('tarjeta_credito','tarjeta_debito','mercado_pago','sin_cargo'); exception when duplicate_object then null; end $$;
 
 create table if not exists perfiles (
   id                     uuid primary key references auth.users(id) on delete cascade,
@@ -174,6 +175,9 @@ begin
   if new.precio_vip = 0 then
     new.precio_vip := round(new.precio_base * 1.5, 2);
   end if;
+  if new.precio_vip < new.precio_base then
+    raise exception 'El precio VIP no puede ser menor que el precio estándar';
+  end if;
   return new;
 end $$;
 
@@ -251,6 +255,16 @@ create table if not exists compras (
   creado_en               timestamptz not null default now()
 );
 
+alter table compras add column if not exists medio_pago       medio_pago;
+alter table compras add column if not exists tarjeta_marca    text;
+alter table compras add column if not exists tarjeta_ultimos4 text;
+alter table compras add column if not exists descuento_canjes numeric(10,2) not null default 0;
+
+do $$ begin
+  alter table compras add constraint compras_ultimos4_valido
+    check (tarjeta_ultimos4 is null or tarjeta_ultimos4 ~ '^[0-9]{4}$');
+exception when duplicate_object then null; end $$;
+
 create table if not exists entradas (
   id         bigserial primary key,
   compra_id  bigint not null references compras(id) on delete cascade,
@@ -301,6 +315,22 @@ create table if not exists canjes (
   puntos_gastados int not null,
   creado_en       timestamptz not null default now()
 );
+
+alter table canjes add column if not exists codigo      text;
+alter table canjes add column if not exists tipo        tipo_recompensa;
+alter table canjes add column if not exists producto_id bigint references productos(id) on delete set null;
+alter table canjes add column if not exists usado       boolean not null default false;
+alter table canjes add column if not exists usado_en    timestamptz;
+alter table canjes add column if not exists compra_id   bigint references compras(id) on delete set null;
+
+update canjes set codigo = 'CJ' || substr(upper(replace(gen_random_uuid()::text, '-', '')), 1, 8)
+ where codigo is null;
+
+update canjes c set tipo = r.tipo, producto_id = r.producto_id
+  from recompensas r
+ where r.id = c.recompensa_id and c.tipo is null;
+
+create unique index if not exists canjes_codigo_unico on canjes (codigo);
 
 create table if not exists alertas_estreno (
   id          bigserial primary key,

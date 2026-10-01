@@ -23,7 +23,7 @@
         (change)="cambiarPelicula(selectorPelicula.value)">
         <option value="">Todas las películas</option>
         @for (pelicula of peliculas(); track pelicula.id) {
-          <option [value]="pelicula.id">{{ pelicula.titulo }}</option>
+          <option [value]="pelicula.id">{{ etiquetaPelicula(pelicula) }}</option>
         }
       </select>
     </div>
@@ -200,7 +200,7 @@
             <select id="pelicula" formControlName="peliculaId">
               <option value="">Elegí una película</option>
               @for (pelicula of peliculas(); track pelicula.id) {
-                <option [value]="pelicula.id">{{ pelicula.titulo }}</option>
+                <option [value]="pelicula.id">{{ etiquetaPelicula(pelicula) }}</option>
               }
             </select>
             @if (formulario.controls.peliculaId.touched && formulario.controls.peliculaId.invalid) {
@@ -330,8 +330,17 @@
 
             <div class="campo">
               <label for="precio-vip">Precio VIP</label>
-              <input id="precio-vip" type="number" min="0" step="100" formControlName="precioVip" />
+              <input
+                id="precio-vip"
+                type="number"
+                min="0"
+                step="100"
+                formControlName="precioVip"
+                [attr.aria-invalid]="vipMenorQueEstandar()" />
               <span class="ayuda">Si lo dejás en 0, la base lo calcula como 1,5 veces el precio base.</span>
+              @if (vipMenorQueEstandar()) {
+                <span class="error-campo">El precio VIP no puede ser menor que el estándar.</span>
+              }
             </div>
           </div>
         </div>

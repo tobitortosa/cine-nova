@@ -4,10 +4,10 @@ declare
   r record;
 begin
   for r in select * from (values
-    ('admin@cinenova.app',    'admin1234',    'admin',    '{"nombre":"Lucia","apellido":"Ferreyra","fecha_nacimiento":"1988-03-21","tipo_sangre":"O+","color_ojos":"Marrones","dias_vacaciones":21}'),
-    ('empleado@cinenova.app', 'empleado1234', 'empleado', '{"nombre":"Martin","apellido":"Quiroga","fecha_nacimiento":"1999-11-02","tipo_sangre":"A-","color_ojos":"Verdes","dias_vacaciones":14}'),
-    ('cliente@cinenova.app',  'cliente1234',  'cliente',  '{"nombre":"Sofia","apellido":"Benitez","fecha_nacimiento":"1996-07-15","tipo_sangre":"B+","color_ojos":"Miel","dias_vacaciones":18}'),
-    ('mayor@cinenova.app',    'mayor1234',    'cliente',  '{"nombre":"Hector","apellido":"Alvarez","fecha_nacimiento":"1962-02-09","tipo_sangre":"AB+","color_ojos":"Grises","dias_vacaciones":30}')
+    ('admin@cinenova.app',    'admin1234',    'admin',    '{"nombre":"Lucía","apellido":"Ferreyra","fecha_nacimiento":"1988-03-21","tipo_sangre":"O+","color_ojos":"Marrones","dias_vacaciones":21}'),
+    ('empleado@cinenova.app', 'empleado1234', 'empleado', '{"nombre":"Martín","apellido":"Quiroga","fecha_nacimiento":"1999-11-02","tipo_sangre":"A-","color_ojos":"Verdes","dias_vacaciones":14}'),
+    ('cliente@cinenova.app',  'cliente1234',  'cliente',  '{"nombre":"Sofía","apellido":"Benítez","fecha_nacimiento":"1996-07-15","tipo_sangre":"B+","color_ojos":"Miel","dias_vacaciones":18}'),
+    ('mayor@cinenova.app',    'mayor1234',    'cliente',  '{"nombre":"Héctor","apellido":"Álvarez","fecha_nacimiento":"1962-02-09","tipo_sangre":"AB+","color_ojos":"Grises","dias_vacaciones":30}')
   ) as t(email, pass, rol, meta)
   loop
     if exists (select 1 from auth.users u where u.email = r.email) then continue; end if;

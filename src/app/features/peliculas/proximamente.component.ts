@@ -9,9 +9,7 @@ import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
-
-const DIAS_PREVENTA = 7;
-const MS_POR_DIA = 86400000;
+import { diasHasta, preventaVigente } from '../../shared/utils/ventas';
 
 @Component({
   selector: 'app-proximamente',
@@ -62,13 +60,7 @@ export class ProximamenteComponent implements OnInit {
   }
 
   dias(pelicula: Pelicula): number {
-    const estreno = this.aFecha(pelicula.fecha_estreno);
-    if (!estreno) return 0;
-
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-
-    return Math.round((estreno.getTime() - hoy.getTime()) / MS_POR_DIA);
+    return diasHasta(pelicula.fecha_estreno) ?? 0;
   }
 
   cuenta(pelicula: Pelicula): string {
@@ -94,11 +86,7 @@ export class ProximamenteComponent implements OnInit {
   }
 
   preventaAbierta(pelicula: Pelicula): boolean {
-    const precio = pelicula.precio_preventa ?? 0;
-    if (precio <= 0) return false;
-
-    const restantes = this.dias(pelicula);
-    return restantes <= DIAS_PREVENTA;
+    return preventaVigente(pelicula);
   }
 
   async alternarAlerta(pelicula: Pelicula): Promise<void> {

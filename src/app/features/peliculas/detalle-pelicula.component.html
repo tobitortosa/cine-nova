@@ -91,7 +91,7 @@
         <section class="bloque" id="funciones">
           <h2>Funciones disponibles</h2>
 
-          @if (!peli.en_cartelera) {
+          @if (!ventaHabilitada()) {
             <div class="aviso">
               <span class="icono" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
@@ -105,37 +105,83 @@
                   Esta película aún no está en cartelera. Activá la alerta en Próximamente y te
                   avisamos apenas abramos las funciones.
                 </p>
+                <ul class="fechas-venta">
+                  <li>
+                    <span class="clave">Estreno</span>
+                    <span class="valor">{{ estreno() || 'A confirmar' }}</span>
+                  </li>
+                  <li>
+                    <span class="clave">
+                      @if (conPreventa()) {
+                        Preventa
+                      } @else {
+                        Venta de entradas
+                      }
+                    </span>
+                    <span class="valor">
+                      @if (aperturaVenta()) {
+                        Desde el {{ aperturaVenta() }}
+                      } @else {
+                        A confirmar
+                      }
+                    </span>
+                  </li>
+                </ul>
                 <a class="btn btn-secundario" routerLink="/proximamente">Ver próximos estrenos</a>
               </div>
             </div>
-          } @else if (grupos().length === 0) {
-            <app-vacio
-              titulo="No hay funciones programadas"
-              texto="Estamos armando la grilla de la semana. Volvé a mirar en un rato." />
           } @else {
-            <div class="dias">
-              @for (grupo of grupos(); track grupo.clave) {
-                <div class="dia">
-                  <div class="rotulo">
-                    <h3>{{ grupo.etiqueta }}</h3>
-                    <span class="fecha">{{ grupo.fecha }}</span>
-                  </div>
-
-                  <div class="horarios">
-                    @for (funcion of grupo.funciones; track funcion.id) {
-                      <a class="funcion" [routerLink]="['/comprar', funcion.id]">
-                        <span class="hora">{{ hora(funcion) }}</span>
-                        <span class="etiquetas">
-                          <span class="chip chip-accent">{{ funcion.formato }}</span>
-                          <span class="chip">{{ funcion.idioma }}</span>
-                        </span>
-                        <span class="sala">{{ funcion.sala?.nombre ?? 'Sala a confirmar' }}</span>
-                      </a>
-                    }
-                  </div>
+            @if (enPreventa()) {
+              <div class="preventa anim-aparecer">
+                <span class="icono-preventa" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z" />
+                    <path d="M15 7v2M15 11v2M15 15v2" />
+                  </svg>
+                </span>
+                <div class="texto-preventa">
+                  <strong>Preventa abierta</strong>
+                  <p>Precio especial válido hasta el {{ finPreventa() }}.</p>
+                  <p class="aclaracion">
+                    Desde el estreno, el {{ estreno() }}, las entradas vuelven a su precio normal.
+                  </p>
                 </div>
-              }
-            </div>
+                <div class="precio-preventa">
+                  <span class="monto">{{ peli.precio_preventa | precio }}</span>
+                  <span class="por-entrada">entrada general</span>
+                </div>
+              </div>
+            }
+
+            @if (grupos().length === 0) {
+              <app-vacio
+                titulo="No hay funciones programadas"
+                texto="Estamos armando la grilla de la semana. Volvé a mirar en un rato." />
+            } @else {
+              <div class="dias">
+                @for (grupo of grupos(); track grupo.clave) {
+                  <div class="dia">
+                    <div class="rotulo">
+                      <h3>{{ grupo.etiqueta }}</h3>
+                      <span class="fecha">{{ grupo.fecha }}</span>
+                    </div>
+
+                    <div class="horarios">
+                      @for (funcion of grupo.funciones; track funcion.id) {
+                        <a class="funcion" [routerLink]="['/comprar', funcion.id]">
+                          <span class="hora">{{ hora(funcion) }}</span>
+                          <span class="etiquetas">
+                            <span class="chip chip-accent">{{ funcion.formato }}</span>
+                            <span class="chip">{{ funcion.idioma }}</span>
+                          </span>
+                          <span class="sala">{{ funcion.sala?.nombre ?? 'Sala a confirmar' }}</span>
+                        </a>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
           }
         </section>
 

@@ -90,13 +90,37 @@ export class PromocionesService {
   }
 
   async misCanjes(): Promise<Canje[]> {
+    const usuario = await this.usuarioActual();
+    if (!usuario) return [];
+
     const { data, error } = await this.sb.client
       .from('canjes')
       .select('*')
+      .eq('usuario_id', usuario)
       .order('creado_en', { ascending: false });
 
     if (error) throw new Error('No se pudieron cargar tus canjes');
     return (data ?? []) as Canje[];
+  }
+
+  async canjesDisponibles(): Promise<Canje[]> {
+    const usuario = await this.usuarioActual();
+    if (!usuario) return [];
+
+    const { data, error } = await this.sb.client
+      .from('canjes')
+      .select('*')
+      .eq('usuario_id', usuario)
+      .eq('usado', false)
+      .order('creado_en', { ascending: true });
+
+    if (error) throw new Error('No se pudieron cargar tus canjes disponibles');
+    return (data ?? []) as Canje[];
+  }
+
+  private async usuarioActual(): Promise<string | null> {
+    const { data } = await this.sb.client.auth.getSession();
+    return data.session?.user.id ?? null;
   }
 
   private limpiarCupon(datos: Partial<Cupon>): Record<string, unknown> {

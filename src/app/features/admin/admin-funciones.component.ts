@@ -1,5 +1,12 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  ValidatorFn,
+  Validators,
+} from '@angular/forms';
 import { FuncionesService } from '../../core/services/funciones.service';
 import { PeliculasService } from '../../core/services/peliculas.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
@@ -9,6 +16,7 @@ import { SelectorFechaHoraComponent } from '../../shared/components/selector-fec
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
+import { preventaVigente } from '../../shared/utils/ventas';
 
 interface GrupoDia {
   clave: string;
@@ -20,6 +28,16 @@ interface OpcionDia {
   valor: number;
   etiqueta: string;
 }
+
+const precioVipValido: ValidatorFn = (grupo: AbstractControl): ValidationErrors | null => {
+  const precio = Number(grupo.get('precio')?.value);
+  const precioVip = Number(grupo.get('precioVip')?.value);
+
+  if (!Number.isFinite(precio) || precio <= 0) return null;
+  if (!Number.isFinite(precioVip) || precioVip === 0) return null;
+
+  return precioVip < precio ? { vipMenorQueEstandar: true } : null;
+};
 
 @Component({
   selector: 'app-admin-funciones',
@@ -82,11 +100,14 @@ export class AdminFuncionesComponent implements OnInit {
 
   readonly minimoFecha = this.textoLocal(new Date());
 
-  readonly formulario = this.fb.nonNullable.group({
-    peliculaId: ['', [Validators.required]],
-    precio: [6500, [Validators.required, Validators.min(1)]],
-    precioVip: [0, [Validators.min(0)]],
-  });
+  readonly formulario = this.fb.nonNullable.group(
+    {
+      peliculaId: ['', [Validators.required]],
+      precio: [6500, [Validators.required, Validators.min(1)]],
+      precioVip: [0, [Validators.min(0)]],
+    },
+    { validators: [precioVipValido] },
+  );
 
   readonly grupos = computed<GrupoDia[]>(() => {
     const mapa = new Map<string, Funcion[]>();
@@ -256,8 +277,18 @@ export class AdminFuncionesComponent implements OnInit {
     this.inicio.set(valor);
   }
 
+  vipMenorQueEstandar(): boolean {
+    const vip = this.formulario.controls.precioVip;
+    return this.formulario.hasError('vipMenorQueEstandar') && (vip.dirty || vip.touched);
+  }
+
   idiomaLegible(valor: IdiomaFuncion): string {
     return valor === 'castellano' ? 'Castellano' : 'Subtitulada';
+  }
+
+  etiquetaPelicula(pelicula: Pelicula): string {
+    if (pelicula.en_cartelera) return pelicula.titulo;
+    return pelicula.titulo + (preventaVigente(pelicula) ? ' · preventa' : ' · próximamente');
   }
 
   async guardar(): Promise<void> {
@@ -266,7 +297,12 @@ export class AdminFuncionesComponent implements OnInit {
 
     if (this.formulario.invalid) {
       this.formulario.markAllAsTouched();
-      this.errorPanel.set('Elegí una película y cargá un precio base mayor a 0.');
+      const { peliculaId, precio } = this.formulario.controls;
+      this.errorPanel.set(
+        peliculaId.invalid || precio.invalid
+          ? 'Elegí una película y cargá un precio base mayor a 0.'
+          : 'El precio VIP no puede ser menor que el estándar.',
+      );
       return;
     }
 

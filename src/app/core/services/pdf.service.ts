@@ -2,12 +2,15 @@ import { Injectable } from '@angular/core';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import { ResumenCompra } from '../models/modelos';
+import { textoMedioPago } from '../../shared/pipes/medio-pago.pipe';
 
 const AMBAR: [number, number, number] = [201, 138, 28];
 const TINTA: [number, number, number] = [22, 22, 26];
 const SUAVE: [number, number, number] = [120, 120, 132];
 const ROJO: [number, number, number] = [196, 42, 40];
+const VERDE: [number, number, number] = [30, 140, 92];
 const LADO_QR = 55;
+const SUFIJO_CANJE = /\s*\(canje\)$/i;
 
 @Injectable({ providedIn: 'root' })
 export class PdfService {
@@ -255,16 +258,26 @@ export class PdfService {
     let cursor = this.titulo(doc, 'Candy bar', margen, y) + 3;
 
     for (const item of items) {
+      const canje = Number(item.precio_unitario) === 0 && SUFIJO_CANJE.test(item.nombre);
+      const nombre = canje ? item.nombre.replace(SUFIJO_CANJE, '') : item.nombre;
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10.5);
       this.tinta(doc, [55, 55, 64]);
-      doc.text(`${item.cantidad} x ${item.nombre}`, margen, cursor);
-      doc.text(
-        this.moneda(item.cantidad * item.precio_unitario),
-        ancho - margen,
-        cursor,
-        { align: 'right' },
-      );
+      doc.text(`${item.cantidad} x ${nombre}`, margen, cursor);
+
+      if (canje) {
+        doc.setFont('helvetica', 'bold');
+        this.tinta(doc, VERDE);
+        doc.text('Canje', ancho - margen, cursor, { align: 'right' });
+      } else {
+        doc.text(
+          this.moneda(item.cantidad * item.precio_unitario),
+          ancho - margen,
+          cursor,
+          { align: 'right' },
+        );
+      }
       cursor += 6.8;
     }
 
@@ -289,6 +302,9 @@ export class PdfService {
     const lineas: { etiqueta: string; valor: string }[] = [
       { etiqueta: 'Subtotal', valor: this.moneda(compra.subtotal) },
     ];
+    if (compra.descuento_canjes > 0) {
+      lineas.push({ etiqueta: 'Canje de puntos', valor: `- ${this.moneda(compra.descuento_canjes)}` });
+    }
     if (compra.descuento > 0) {
       lineas.push({ etiqueta: 'Descuento', valor: `- ${this.moneda(compra.descuento)}` });
     }
@@ -314,6 +330,12 @@ export class PdfService {
     this.tinta(doc, AMBAR);
     doc.text(this.moneda(compra.total), ancho - margen, cursor, { align: 'right' });
     cursor += 8;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    this.tinta(doc, SUAVE);
+    doc.text(`Medio de pago: ${textoMedioPago(compra)}`, margen, cursor);
+    cursor += 6.4;
 
     if (compra.puntos_ganados > 0) {
       doc.setFont('helvetica', 'normal');

@@ -104,7 +104,10 @@
                 </div>
                 <div class="compra-preventa">
                   <span class="precio">{{ pelicula.precio_preventa | precio }}</span>
-                  <a class="btn btn-primario" [routerLink]="['/peliculas', pelicula.id]">
+                  <a
+                    class="btn btn-primario"
+                    [routerLink]="['/peliculas', pelicula.id]"
+                    fragment="funciones">
                     Comprar en preventa
                   </a>
                 </div>

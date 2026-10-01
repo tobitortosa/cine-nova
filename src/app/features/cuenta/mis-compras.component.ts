@@ -6,6 +6,7 @@ import { FuncionesService } from '../../core/services/funciones.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { Compra, ResumenCompra } from '../../core/models/modelos';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
+import { MedioPagoPipe } from '../../shared/pipes/medio-pago.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
@@ -18,6 +19,7 @@ const MARGEN_CANCELACION_MS = 2 * 60 * 60 * 1000;
     RouterLink,
     RouterLinkActive,
     PrecioPipe,
+    MedioPagoPipe,
     CargandoComponent,
     VacioComponent,
     ConfirmarComponent,

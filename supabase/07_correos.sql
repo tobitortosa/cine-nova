@@ -2,7 +2,7 @@ do $$
 begin
   create extension if not exists pg_net;
 exception when others then
-  raise notice 'pg_net no disponible: los correos quedan registrados pero no se envian';
+  raise notice 'pg_net no disponible: los correos quedan registrados pero no se envían';
 end $$;
 
 do $$ begin create type estado_correo as enum ('sin_configurar','enviado','fallido'); exception when duplicate_object then null; end $$;
@@ -16,10 +16,10 @@ create table if not exists configuracion (
 alter table configuracion enable row level security;
 
 insert into configuracion (clave, valor, descripcion) values
-  ('brevo_api_key',    '',                                 'Clave de API de Brevo. Panel de Brevo, seccion SMTP & API.'),
-  ('correo_remitente', '',                                 'Direccion verificada en Brevo desde la que salen los correos.'),
-  ('nombre_remitente', 'CineNova',                         'Nombre que ve la persona en su bandeja de entrada.'),
-  ('url_app',          'https://cine-nova-seven.vercel.app','Direccion publica de la aplicacion, usada en los enlaces.')
+  ('brevo_api_key',    '',                                  'Clave de API de Brevo. Panel de Brevo, sección SMTP & API.'),
+  ('correo_remitente', '',                                  'Dirección verificada en Brevo desde la que salen los correos.'),
+  ('nombre_remitente', 'CineNova',                          'Nombre que ve la persona en su bandeja de entrada.'),
+  ('url_app',          'https://cine-nova-seven.vercel.app','Dirección pública de la aplicación, usada en los enlaces.')
 on conflict (clave) do nothing;
 
 create table if not exists correos (
@@ -45,6 +45,11 @@ returns text language sql stable security definer set search_path = public as $$
 $$;
 
 revoke execute on function valor_de_configuracion(text) from public, anon, authenticated;
+
+create or replace function formato_pesos(p_monto numeric)
+returns text language sql immutable as $$
+  select '$ ' || replace(to_char(round(coalesce(p_monto, 0)), 'FM999,999,990'), ',', '.');
+$$;
 
 create or replace function plantilla_correo(
   p_titulo text, p_bajada text, p_cuerpo text,
@@ -74,7 +79,7 @@ returns text language sql immutable as $$
   || '<tr><td style="padding:20px 32px 28px;border-top:1px solid #2a2f40;">'
   || '<p style="margin:0;font:400 12px/1.6 Helvetica,Arial,sans-serif;color:#6b7185;">'
   || 'CineNova &middot; Av. Siempre Viva 1234, Buenos Aires<br>'
-  || 'Este correo se envio automaticamente, no hace falta responderlo.</p>'
+  || 'Este correo se envió automáticamente, no hace falta responderlo.</p>'
   || '</td></tr></table></td></tr></table></body></html>';
 $$;
 
@@ -106,7 +111,7 @@ begin
 
   if v_esquema is null then
     insert into correos (destinatario, asunto, motivo, estado, detalle)
-    values (p_destinatario, p_asunto, p_motivo, 'fallido', 'La extension pg_net no esta disponible.');
+    values (p_destinatario, p_asunto, p_motivo, 'fallido', 'La extensión pg_net no está disponible.');
     return;
   end if;
 
@@ -131,6 +136,23 @@ end $$;
 
 revoke execute on function enviar_correo(text, text, text, text) from public, anon, authenticated;
 
+create or replace function descripcion_medio_pago(p_compra compras)
+returns text language sql immutable as $$
+  select case p_compra.medio_pago
+    when 'tarjeta_credito' then 'Tarjeta de crédito ' || coalesce(p_compra.tarjeta_marca, '') || ' terminada en ' || coalesce(p_compra.tarjeta_ultimos4, '----')
+    when 'tarjeta_debito'  then 'Tarjeta de débito '  || coalesce(p_compra.tarjeta_marca, '') || ' terminada en ' || coalesce(p_compra.tarjeta_ultimos4, '----')
+    when 'mercado_pago'    then 'Mercado Pago'
+    when 'sin_cargo'       then 'Sin cargo'
+    else 'No registrado'
+  end;
+$$;
+
+create or replace function linea_correo(p_etiqueta text, p_valor text, p_color text default '#a8adbd')
+returns text language sql immutable as $$
+  select '<tr><td style="font:400 14px Helvetica,Arial,sans-serif;color:#a8adbd;padding:4px 0;">' || p_etiqueta || '</td>'
+      || '<td align="right" style="font:600 14px Helvetica,Arial,sans-serif;color:' || p_color || ';padding:4px 0;">' || p_valor || '</td></tr>';
+$$;
+
 create or replace function correo_de_compra(p_compra_id bigint)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -153,7 +175,7 @@ begin
    where e.compra_id = v_c.id and e.activa;
 
   v_items := '';
-  for v_fila in select nombre, cantidad from compra_items where compra_id = v_c.id loop
+  for v_fila in select nombre, cantidad from compra_items where compra_id = v_c.id order by id loop
     v_items := v_items || '<tr><td style="padding:6px 0;font:400 14px Helvetica,Arial,sans-serif;color:#a8adbd;">'
             || v_fila.cantidad || ' &times; ' || v_fila.nombre || '</td></tr>';
   end loop;
@@ -164,67 +186,81 @@ begin
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1a1d28;border-radius:12px;padding:20px 22px;">'
     || '<tr><td style="font:700 19px Helvetica,Arial,sans-serif;color:#f2f3f7;padding-bottom:14px;">' || v_p.titulo || '</td></tr>'
     || '<tr><td style="font:400 14px/1.9 Helvetica,Arial,sans-serif;color:#a8adbd;">'
-    || '<strong style="color:#f2f3f7;">Funcion:</strong> '
+    || '<strong style="color:#f2f3f7;">Función:</strong> '
     || to_char(v_f.inicio at time zone 'America/Argentina/Buenos_Aires', 'DD/MM/YYYY') || ' a las '
     || to_char(v_f.inicio at time zone 'America/Argentina/Buenos_Aires', 'HH24:MI') || ' h<br>'
-    || '<strong style="color:#f2f3f7;">Sala:</strong> ' || coalesce(v_sala,'A confirmar')
-    || ' &middot; ' || v_f.formato || ' &middot; ' || v_f.idioma || '<br>'
-    || '<strong style="color:#f2f3f7;">Butacas:</strong> ' || coalesce(v_butacas,'-')
+    || '<strong style="color:#f2f3f7;">Sala:</strong> ' || coalesce(v_sala, 'A confirmar')
+    || ' &middot; ' || v_f.formato || ' &middot; ' || initcap(v_f.idioma::text) || '<br>'
+    || '<strong style="color:#f2f3f7;">Butacas:</strong> ' || coalesce(v_butacas, '-')
     || '</td></tr></table>'
     || case when v_items = '' then ''
        else '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#1a1d28;border-radius:12px;padding:16px 22px;">'
             || '<tr><td style="font:700 12px Helvetica,Arial,sans-serif;color:#f5b43c;letter-spacing:1px;padding-bottom:6px;">CANDY BAR</td></tr>'
             || v_items || '</table>' end
     || '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">'
-    || '<tr><td style="font:400 14px Helvetica,Arial,sans-serif;color:#a8adbd;padding:4px 0;">Total abonado</td>'
-    || '<td align="right" style="font:700 18px Helvetica,Arial,sans-serif;color:#f5b43c;">$ '
-    || to_char(v_c.total, 'FM999G999G999') || '</td></tr></table>'
+    || linea_correo('Subtotal', formato_pesos(v_c.subtotal))
+    || case when v_c.descuento_canjes > 0 then linea_correo('Canje de puntos', '&minus; ' || formato_pesos(v_c.descuento_canjes), '#3fcf8e') else '' end
+    || case when v_c.descuento > 0 then linea_correo('Cupón de descuento', '&minus; ' || formato_pesos(v_c.descuento), '#3fcf8e') else '' end
+    || case when v_c.credito_usado > 0 then linea_correo('Crédito usado', '&minus; ' || formato_pesos(v_c.credito_usado), '#3fcf8e') else '' end
+    || '<tr><td style="font:700 15px Helvetica,Arial,sans-serif;color:#f2f3f7;padding:10px 0 4px;border-top:1px solid #2a2f40;">Total abonado</td>'
+    || '<td align="right" style="font:700 19px Helvetica,Arial,sans-serif;color:#f5b43c;padding:10px 0 4px;border-top:1px solid #2a2f40;">' || formato_pesos(v_c.total) || '</td></tr>'
+    || linea_correo('Medio de pago', descripcion_medio_pago(v_c), '#f2f3f7')
+    || case when v_c.puntos_ganados > 0 then linea_correo('Puntos sumados', v_c.puntos_ganados::text, '#ffd27f') else '' end
+    || '</table>'
     || '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;background:#0a0b10;border:1px dashed #2a2f40;border-radius:12px;padding:18px;">'
     || '<tr><td align="center">'
-    || '<div style="font:700 11px Helvetica,Arial,sans-serif;color:#6b7185;letter-spacing:2px;">CODIGO DE COMPRA</div>'
+    || '<div style="font:700 11px Helvetica,Arial,sans-serif;color:#6b7185;letter-spacing:2px;">CÓDIGO DE COMPRA</div>'
     || '<div style="font:700 24px/1.6 Courier New,monospace;color:#f5b43c;letter-spacing:4px;">' || v_c.codigo || '</div>'
-    || '<div style="font:400 13px/1.6 Helvetica,Arial,sans-serif;color:#a8adbd;">Mostra el codigo QR desde el enlace de abajo para ingresar a la sala y retirar tu pedido del candy bar.</div>'
+    || '<div style="font:400 13px/1.6 Helvetica,Arial,sans-serif;color:#a8adbd;">Mostrá el código QR desde el enlace de abajo para ingresar a la sala y retirar tu pedido del candy bar. Es de un solo uso.</div>'
     || '</td></tr></table>'
     || case when v_p.restriccion_edad > 0
-       then '<p style="margin:18px 0 0;padding:12px 16px;background:rgba(240,82,79,.12);border-radius:10px;font:600 13px/1.5 Helvetica,Arial,sans-serif;color:#f0524f;">Pelicula +'
-            || v_p.restriccion_edad || ': los menores deben ingresar acompaniados por un adulto.</p>'
+       then '<p style="margin:18px 0 0;padding:12px 16px;background:rgba(240,82,79,.12);border-radius:10px;font:600 13px/1.5 Helvetica,Arial,sans-serif;color:#f0524f;">Película +'
+            || v_p.restriccion_edad || ': los menores deben ingresar acompañados por un adulto.</p>'
        else '' end;
 
   perform enviar_correo(
     v_c.email_contacto,
-    'Tu entrada para ' || v_p.titulo || ' - codigo ' || v_c.codigo,
-    plantilla_correo('Tu compra quedo confirmada',
-      'Guarda este correo: con el codigo de abajo ingresas a la sala y retiras el candy bar.',
+    'Tu entrada para ' || v_p.titulo || ' · código ' || v_c.codigo,
+    plantilla_correo('Tu compra quedó confirmada',
+      'Guardá este correo: con el código de abajo entrás a la sala y retirás el candy bar.',
       v_cuerpo, 'Ver mi entrada con el QR', v_url),
     'compra_confirmada');
 end $$;
 
 create or replace function fn_correo_cancelacion()
 returns trigger language plpgsql security definer set search_path = public as $$
-declare v_p peliculas; v_f funciones; v_cuerpo text;
+declare v_p peliculas; v_f funciones; v_cuerpo text; v_canjes boolean;
 begin
   if new.estado <> 'cancelada' or old.estado = 'cancelada' then return new; end if;
 
   select * into v_f from funciones where id = new.funcion_id;
   select * into v_p from peliculas where id = v_f.pelicula_id;
 
+  v_canjes := new.descuento_canjes > 0
+           or exists (select 1 from compra_items ci
+                       where ci.compra_id = new.id and ci.precio_unitario = 0 and ci.nombre like '% (canje)');
+
   v_cuerpo :=
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1a1d28;border-radius:12px;padding:20px 22px;">'
     || '<tr><td style="font:400 14px/1.9 Helvetica,Arial,sans-serif;color:#a8adbd;">'
-    || '<strong style="color:#f2f3f7;">Pelicula:</strong> ' || coalesce(v_p.titulo,'-') || '<br>'
-    || '<strong style="color:#f2f3f7;">Codigo:</strong> ' || new.codigo || '<br>'
-    || '<strong style="color:#f2f3f7;">Credito acreditado:</strong> <span style="color:#3fcf8e;">$ '
-    || to_char(new.total + new.credito_usado, 'FM999G999G999') || '</span>'
+    || '<strong style="color:#f2f3f7;">Película:</strong> ' || coalesce(v_p.titulo, '-') || '<br>'
+    || '<strong style="color:#f2f3f7;">Código:</strong> ' || new.codigo || '<br>'
+    || '<strong style="color:#f2f3f7;">Crédito acreditado:</strong> <span style="color:#3fcf8e;">'
+    || formato_pesos(new.total + new.credito_usado) || '</span>'
     || '</td></tr></table>'
     || '<p style="margin:18px 0 0;font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#a8adbd;">'
-    || 'El importe quedo como credito en tu cuenta y lo podes usar en tu proxima compra, '
-    || 'combinandolo con cualquier otro medio de pago.</p>';
+    || 'El importe quedó como crédito en tu cuenta y lo podés usar en tu próxima compra, '
+    || 'combinándolo con cualquier otro medio de pago.</p>'
+    || case when v_canjes
+       then '<p style="margin:12px 0 0;font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#a8adbd;">'
+            || 'Los canjes de puntos que habías usado volvieron a quedar disponibles en tu cuenta.</p>'
+       else '' end;
 
   perform enviar_correo(
     new.email_contacto,
     'Cancelamos tu compra ' || new.codigo,
     plantilla_correo('Tu compra fue cancelada',
-      'Ya te acreditamos el importe como credito en tu cuenta.',
+      'Ya te acreditamos el importe como crédito en tu cuenta.',
       v_cuerpo, 'Ver mis compras',
       coalesce(valor_de_configuracion('url_app'),'') || '/cuenta/compras'),
     'compra_cancelada');
@@ -244,22 +280,22 @@ begin
   if not found then return new; end if;
 
   v_cuerpo :=
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#1a1d28,#242838);border:1px solid #f5b43c;border-radius:12px;padding:24px;">'
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1a1d28;border:1px solid #f5b43c;border-radius:12px;padding:24px;">'
     || '<tr><td align="center">'
-    || '<div style="font:700 11px Helvetica,Arial,sans-serif;color:#f5b43c;letter-spacing:2px;">TU CUPON DE BIENVENIDA</div>'
+    || '<div style="font:700 11px Helvetica,Arial,sans-serif;color:#f5b43c;letter-spacing:2px;">TU CUPÓN DE BIENVENIDA</div>'
     || '<div style="font:800 32px/1.5 Courier New,monospace;color:#ffd27f;letter-spacing:3px;">' || v_cupon.codigo || '</div>'
     || '<div style="font:700 17px Helvetica,Arial,sans-serif;color:#f2f3f7;">'
     || to_char(v_cupon.porcentaje, 'FM999') || '% de descuento en tu primera compra</div>'
     || '</td></tr></table>'
     || '<p style="margin:22px 0 0;font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#a8adbd;">'
-    || 'Ademas, desde ahora sumas 1 punto por cada peso que gastes. Los podes canjear por '
+    || 'Además, desde ahora sumás 1 punto por cada peso que gastes. Los podés canjear por '
     || 'entradas gratis y productos del candy bar.</p>';
 
   perform enviar_correo(
     new.email,
-    'Bienvenido a CineNova, te dejamos un ' || to_char(v_cupon.porcentaje,'FM999') || '% de descuento',
+    'Bienvenido a CineNova: te regalamos un ' || to_char(v_cupon.porcentaje,'FM999') || '% de descuento',
     plantilla_correo('Ya sos parte de CineNova',
-      'Tu cuenta quedo creada. Te esperamos en la sala.',
+      'Tu cuenta quedó creada. Te esperamos en la sala.',
       v_cuerpo, 'Ver la cartelera',
       coalesce(valor_de_configuracion('url_app'),'') || '/peliculas'),
     'bienvenida');
@@ -271,44 +307,95 @@ create trigger trg_correo_bienvenida
   after insert on perfiles
   for each row execute function fn_correo_bienvenida();
 
-create or replace function fn_correo_estreno()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare v_a record; v_cuerpo text; v_url text;
+create or replace function notificar_apertura_venta(p_pelicula_id bigint)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_p peliculas; v_a record; v_cuerpo text; v_url text;
+  v_preventa boolean; v_asunto text; v_titulo text; v_bajada text;
 begin
-  if new.en_cartelera is not true or old.en_cartelera is true then return new; end if;
+  select * into v_p from peliculas where id = p_pelicula_id;
+  if not found or not venta_abierta(p_pelicula_id) then return; end if;
 
-  v_url := coalesce(valor_de_configuracion('url_app'),'') || '/peliculas/' || new.id;
+  v_preventa := preventa_vigente(p_pelicula_id);
+  v_url := coalesce(valor_de_configuracion('url_app'),'') || '/peliculas/' || v_p.id;
+
+  if v_preventa then
+    v_asunto := 'Abrió la preventa de ' || v_p.titulo;
+    v_titulo := 'Se abrió la preventa';
+    v_bajada := 'Activaste una alerta para esta película y ya podés comprar tus entradas a precio especial.';
+  else
+    v_asunto := 'Ya podés comprar tus entradas para ' || v_p.titulo;
+    v_titulo := 'Se abrió la venta';
+    v_bajada := 'Activaste una alerta para esta película y ya tiene funciones disponibles.';
+  end if;
 
   v_cuerpo :=
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1a1d28;border-radius:12px;padding:20px 22px;">'
-    || '<tr><td style="font:700 19px Helvetica,Arial,sans-serif;color:#f2f3f7;padding-bottom:8px;">' || new.titulo || '</td></tr>'
-    || '<tr><td style="font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#a8adbd;">' || left(new.sinopsis, 260) || '</td></tr>'
-    || '</table>';
+    || '<tr><td style="font:700 19px Helvetica,Arial,sans-serif;color:#f2f3f7;padding-bottom:8px;">' || v_p.titulo || '</td></tr>'
+    || '<tr><td style="font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#a8adbd;">' || left(v_p.sinopsis, 260) || '</td></tr>'
+    || '</table>'
+    || case when v_preventa
+       then '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;background:#1a1d28;border:1px solid #f5b43c;border-radius:12px;padding:18px 22px;">'
+            || '<tr><td style="font:400 14px/1.7 Helvetica,Arial,sans-serif;color:#a8adbd;">'
+            || '<strong style="color:#ffd27f;">Precio de preventa: ' || formato_pesos(v_p.precio_preventa) || '</strong><br>'
+            || 'Vale hasta el ' || to_char(v_p.fecha_estreno - 1, 'DD/MM') || '. Desde el estreno, el '
+            || to_char(v_p.fecha_estreno, 'DD/MM') || ', las entradas vuelven a su precio normal.'
+            || '</td></tr></table>'
+       else '' end;
 
   for v_a in
-    select p.email
+    select a.id, pf.email
       from alertas_estreno a
-      join perfiles p on p.id = a.usuario_id
-     where a.pelicula_id = new.id and a.notificada = false
+      join perfiles pf on pf.id = a.usuario_id
+     where a.pelicula_id = p_pelicula_id and a.notificada = false
+     for update of a
   loop
-    perform enviar_correo(
-      v_a.email,
-      'Ya podes comprar tus entradas para ' || new.titulo,
-      plantilla_correo('Se abrio la venta',
-        'Activaste una alerta para esta pelicula y ya tiene funciones disponibles.',
-        v_cuerpo, 'Ver funciones y comprar', v_url),
+    perform enviar_correo(v_a.email, v_asunto,
+      plantilla_correo(v_titulo, v_bajada, v_cuerpo, 'Ver funciones y comprar', v_url),
       'alerta_estreno');
+    update alertas_estreno set notificada = true where id = v_a.id;
   end loop;
+end $$;
 
-  update alertas_estreno set notificada = true
-   where pelicula_id = new.id and notificada = false;
+revoke execute on function notificar_apertura_venta(bigint) from public, anon, authenticated;
 
+create or replace function fn_correo_estreno()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if venta_abierta(new.id) then
+    perform notificar_apertura_venta(new.id);
+  end if;
   return new;
 end $$;
 
 drop trigger if exists trg_correo_estreno on peliculas;
 create trigger trg_correo_estreno
-  after update of en_cartelera on peliculas
+  after update of en_cartelera, fecha_estreno, precio_preventa on peliculas
   for each row execute function fn_correo_estreno();
 
-grant execute on function plantilla_correo(text, text, text, text, text) to postgres;
+create or replace function abrir_ventas_del_dia()
+returns void language plpgsql security definer set search_path = public as $$
+declare v_id bigint;
+begin
+  update peliculas set en_cartelera = true
+   where not en_cartelera and fecha_estreno is not null and fecha_estreno <= hoy_local();
+
+  for v_id in
+    select distinct a.pelicula_id from alertas_estreno a
+     where a.notificada = false and venta_abierta(a.pelicula_id)
+  loop
+    perform notificar_apertura_venta(v_id);
+  end loop;
+
+  delete from reservas where expira_en < now();
+end $$;
+
+revoke execute on function abrir_ventas_del_dia() from public, anon, authenticated;
+
+do $$
+begin
+  create extension if not exists pg_cron;
+  perform cron.schedule('cinenova-abrir-ventas', '5 * * * *', 'select public.abrir_ventas_del_dia()');
+exception when others then
+  raise notice 'pg_cron no disponible (%): la apertura automática de ventas queda desactivada', sqlerrm;
+end $$;

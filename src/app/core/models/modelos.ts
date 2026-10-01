@@ -5,6 +5,7 @@ export type IdiomaFuncion = 'castellano' | 'subtitulada';
 export type EstadoCompra = 'pagada' | 'cancelada';
 export type TipoCupon = 'bienvenida' | 'edad';
 export type TipoRecompensa = 'entrada' | 'producto';
+export type MedioPago = 'tarjeta_credito' | 'tarjeta_debito' | 'mercado_pago' | 'sin_cargo';
 
 export interface Perfil {
   id: string;
@@ -136,6 +137,10 @@ export interface Compra {
   entrada_validada_en: string | null;
   productos_entregados: boolean;
   productos_entregados_en: string | null;
+  medio_pago: MedioPago | null;
+  tarjeta_marca: string | null;
+  tarjeta_ultimos4: string | null;
+  descuento_canjes: number;
   creado_en: string;
   funcion?: Funcion;
 }
@@ -177,7 +182,19 @@ export interface Canje {
   recompensa_id: number | null;
   nombre: string;
   puntos_gastados: number;
+  codigo: string;
+  tipo: TipoRecompensa | null;
+  producto_id: number | null;
+  usado: boolean;
+  usado_en: string | null;
+  compra_id: number | null;
   creado_en: string;
+}
+
+export interface DatosPago {
+  medio: MedioPago;
+  marca?: string | null;
+  ultimos4?: string | null;
 }
 
 export interface AlertaEstreno {

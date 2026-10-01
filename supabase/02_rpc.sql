@@ -15,7 +15,7 @@ begin
   if not es_admin() then raise exception 'No autorizado'; end if;
 
   select duracion_min into v_dur from peliculas where id = p_pelicula_id;
-  if v_dur is null then raise exception 'La pelicula no existe'; end if;
+  if v_dur is null then raise exception 'La película no existe'; end if;
 
   v_fin := p_inicio + (v_dur || ' minutes')::interval;
 
@@ -34,18 +34,22 @@ begin
   values (p_pelicula_id, v_sala, p_inicio, v_fin, p_formato, p_idioma, p_precio, p_precio_vip, auth.uid())
   returning * into v_row;
 
-  perform registrar_log('crear', 'funcion', v_row.id::text,
-    jsonb_build_object('pelicula_id', p_pelicula_id, 'sala_id', v_sala, 'inicio', p_inicio));
-
   return v_row;
 end $$;
 
 create or replace function reservar_butacas(p_funcion_id bigint, p_butacas bigint[], p_sesion text)
 returns void language plpgsql security definer set search_path = public as $$
+declare v_f funciones;
 begin
   delete from reservas where expira_en < now();
   delete from reservas where sesion = p_sesion;
   if coalesce(array_length(p_butacas,1),0) > 0 then
+    select * into v_f from funciones where id = p_funcion_id;
+    if not found then raise exception 'La función no existe'; end if;
+    if v_f.inicio <= now() then raise exception 'La función ya comenzó'; end if;
+    if not venta_abierta(v_f.pelicula_id) then
+      raise exception 'La venta de entradas para esta película todavía no está abierta';
+    end if;
     insert into reservas (funcion_id, butaca_id, sesion)
     select p_funcion_id, b, p_sesion from unnest(p_butacas) b
     on conflict (funcion_id, butaca_id) do nothing;
@@ -63,6 +67,35 @@ language sql stable security definer set search_path = public as $$
    where r.funcion_id = p_funcion_id and r.expira_en > now() and r.sesion <> p_sesion;
 $$;
 
+create or replace function hoy_local()
+returns date language sql stable as $$
+  select (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+$$;
+
+create or replace function preventa_vigente(p_pelicula_id bigint)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select p.precio_preventa is not null
+       and p.fecha_estreno is not null
+       and hoy_local() >= p.fecha_estreno - 7
+       and hoy_local() <  p.fecha_estreno
+      from peliculas p
+     where p.id = p_pelicula_id), false);
+$$;
+
+create or replace function venta_abierta(p_pelicula_id bigint)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select p.en_cartelera
+        or (p.fecha_estreno is not null
+            and hoy_local() >= p.fecha_estreno - case when p.precio_preventa is not null then 7 else 0 end)
+      from peliculas p
+     where p.id = p_pelicula_id), false);
+$$;
+
+drop function if exists registrar_compra(bigint, bigint[], jsonb, text, text, numeric, date, text);
+drop function if exists registrar_compra(bigint, bigint[], jsonb, text, text, numeric, date, text, text[], text, text, text);
+
 create or replace function registrar_compra(
   p_funcion_id bigint,
   p_butacas bigint[],
@@ -71,7 +104,12 @@ create or replace function registrar_compra(
   p_cupon_codigo text default null,
   p_usar_credito numeric default 0,
   p_fecha_nacimiento date default null,
-  p_sesion text default null)
+  p_sesion text default null,
+  p_canjes text[] default null,
+  p_medio_pago text default null,
+  p_tarjeta_marca text default null,
+  p_tarjeta_ultimos4 text default null,
+  p_total_esperado numeric default null)
 returns compras language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
@@ -79,9 +117,11 @@ declare
   v_f funciones;
   v_p peliculas;
   v_edad int;
-  v_preventa boolean := false;
   v_precio_est numeric; v_precio_vip numeric;
-  v_sub numeric := 0; v_desc numeric := 0; v_cred numeric := 0; v_total numeric;
+  v_sub numeric := 0; v_sub_entradas numeric := 0; v_canje numeric := 0;
+  v_desc numeric := 0; v_cred numeric := 0; v_total numeric;
+  v_producto_id bigint; v_combo_id bigint; v_unidades int;
+  v_nombre_item text; v_precio_item numeric;
   v_cupon cupones;
   v_compra compras;
   v_codigo text;
@@ -89,45 +129,81 @@ declare
   v_item jsonb;
   v_nac date;
   v_cant int;
+  v_pedidos text[];
+  v_codigos text[] := '{}';
+  v_cj canjes;
+  v_entradas_canje int := 0;
+  v_prod productos;
+  v_medio medio_pago;
 begin
-  if p_funcion_id is null then raise exception 'Falta indicar la funcion'; end if;
+  if p_funcion_id is null then raise exception 'Falta indicar la función'; end if;
   v_cant := coalesce(array_length(p_butacas,1),0);
   if v_cant = 0 then raise exception 'Seleccioná al menos una butaca'; end if;
-  if v_cant > 10 then raise exception 'No se pueden comprar mas de 10 entradas por operacion'; end if;
+  if v_cant > 10 then raise exception 'No se pueden comprar más de 10 entradas por operación'; end if;
+  if (select count(distinct b) from unnest(p_butacas) b) <> v_cant then
+    raise exception 'Hay butacas repetidas en la selección';
+  end if;
 
   select * into v_f from funciones where id = p_funcion_id;
-  if not found then raise exception 'La funcion no existe'; end if;
-  if v_f.inicio <= now() then raise exception 'La funcion ya comenzo'; end if;
+  if not found then raise exception 'La función no existe'; end if;
+  if v_f.inicio <= now() then raise exception 'La función ya comenzó'; end if;
 
   select * into v_p from peliculas where id = v_f.pelicula_id;
 
+  if not venta_abierta(v_p.id) then
+    raise exception 'La venta de entradas para esta película todavía no está abierta';
+  end if;
+
   if v_uid is not null then
-    select * into v_perfil from perfiles where id = v_uid;
+    select * into v_perfil from perfiles where id = v_uid for update;
   end if;
 
   v_nac := coalesce(v_perfil.fecha_nacimiento, p_fecha_nacimiento);
 
   if v_p.restriccion_edad > 0 then
     if v_nac is null then
-      raise exception 'Necesitamos tu fecha de nacimiento para esta pelicula';
+      raise exception 'Necesitamos tu fecha de nacimiento para esta película';
     end if;
     v_edad := extract(year from age(v_nac))::int;
     if v_edad < v_p.restriccion_edad then
-      raise exception 'No cumplis la edad minima (+%) para esta pelicula', v_p.restriccion_edad;
+      raise exception 'No cumplís la edad mínima (+%) para esta película', v_p.restriccion_edad;
     end if;
   end if;
 
-  v_preventa := v_p.precio_preventa is not null
-            and v_p.fecha_estreno is not null
-            and now()::date < v_p.fecha_estreno
-            and now()::date >= v_p.fecha_estreno - 7;
-
-  if v_preventa then
+  if preventa_vigente(v_p.id) then
     v_precio_est := v_p.precio_preventa;
     v_precio_vip := round(v_p.precio_preventa * 1.5, 2);
   else
     v_precio_est := v_f.precio_base;
     v_precio_vip := v_f.precio_vip;
+  end if;
+
+  select coalesce(array_agg(distinct upper(trim(x))), '{}')
+    into v_pedidos
+    from unnest(coalesce(p_canjes, '{}'::text[])) x
+   where trim(x) <> '';
+
+  if array_length(v_pedidos, 1) > 0 then
+    if v_uid is null then raise exception 'Los canjes son solo para usuarios registrados'; end if;
+
+    for v_cj in
+      select c.* from canjes c where c.codigo = any(v_pedidos) for update
+    loop
+      if v_cj.usuario_id <> v_uid then raise exception 'El canje % no pertenece a tu cuenta', v_cj.codigo; end if;
+      if v_cj.usado then raise exception 'El canje % ya fue usado', v_cj.codigo; end if;
+      v_codigos := v_codigos || v_cj.codigo;
+      if v_cj.tipo = 'entrada' then
+        v_entradas_canje := v_entradas_canje + 1;
+      end if;
+    end loop;
+
+    if coalesce(array_length(v_codigos,1),0) <> array_length(v_pedidos,1) then
+      raise exception 'Alguno de los canjes no existe';
+    end if;
+
+    if v_entradas_canje > v_cant then
+      raise exception 'Tenés más canjes de entrada que butacas elegidas';
+    end if;
   end if;
 
   v_codigo := substr(upper(replace(gen_random_uuid()::text, '-', '')), 1, 12);
@@ -147,57 +223,107 @@ begin
     exception when unique_violation then
       raise exception 'Una de las butacas elegidas acaba de venderse. Actualizá el mapa.';
     end;
-    v_sub := v_sub + case when v_b.tipo = 'vip' then v_precio_vip else v_precio_est end;
+    v_sub_entradas := v_sub_entradas + case when v_b.tipo = 'vip' then v_precio_vip else v_precio_est end;
   end loop;
 
+  v_sub := v_sub_entradas;
+
   if (select count(*) from entradas where compra_id = v_compra.id) <> v_cant then
-    raise exception 'Alguna butaca no pertenece a la sala de esta funcion';
+    raise exception 'Alguna butaca no pertenece a la sala de esta función';
   end if;
 
   if p_items is not null and jsonb_typeof(p_items) = 'array' then
     for v_item in select * from jsonb_array_elements(p_items) loop
+      v_producto_id := nullif(v_item->>'producto_id','')::bigint;
+      v_combo_id    := nullif(v_item->>'combo_id','')::bigint;
+      v_unidades    := coalesce((v_item->>'cantidad')::int, 1);
+
+      if (v_producto_id is null) = (v_combo_id is null) then
+        raise exception 'Hay un producto inválido en el pedido';
+      end if;
+      if v_unidades < 1 or v_unidades > 20 then
+        raise exception 'Cada producto se puede pedir entre 1 y 20 unidades';
+      end if;
+
+      if v_producto_id is not null then
+        select nombre, precio into v_nombre_item, v_precio_item from productos where id = v_producto_id and activo;
+      else
+        select nombre, precio into v_nombre_item, v_precio_item from combos where id = v_combo_id and activo;
+      end if;
+      if not found then
+        raise exception 'Uno de los productos del pedido ya no está disponible';
+      end if;
+
       insert into compra_items (compra_id, producto_id, combo_id, nombre, cantidad, precio_unitario)
-      values (v_compra.id,
-              nullif(v_item->>'producto_id','')::bigint,
-              nullif(v_item->>'combo_id','')::bigint,
-              coalesce(v_item->>'nombre','Producto'),
-              greatest(1, coalesce((v_item->>'cantidad')::int,1)),
-              greatest(0, coalesce((v_item->>'precio_unitario')::numeric,0)));
-      v_sub := v_sub + greatest(1, coalesce((v_item->>'cantidad')::int,1))
-                     * greatest(0, coalesce((v_item->>'precio_unitario')::numeric,0));
+      values (v_compra.id, v_producto_id, v_combo_id, v_nombre_item, v_unidades, v_precio_item);
+      v_sub := v_sub + v_unidades * v_precio_item;
     end loop;
   end if;
+
+  for v_cj in select c.* from canjes c where c.codigo = any(v_codigos) and c.tipo = 'producto' loop
+    select * into v_prod from productos where id = v_cj.producto_id;
+    if not found then raise exception 'El producto del canje % ya no existe', v_cj.codigo; end if;
+    insert into compra_items (compra_id, producto_id, nombre, cantidad, precio_unitario)
+    values (v_compra.id, v_prod.id, v_prod.nombre || ' (canje)', 1, 0);
+  end loop;
+
+  v_canje := least(v_entradas_canje * v_precio_est, v_sub_entradas);
 
   if p_cupon_codigo is not null and length(trim(p_cupon_codigo)) > 0 then
     select * into v_cupon from cupones
      where upper(codigo) = upper(trim(p_cupon_codigo)) and activo;
-    if not found then raise exception 'El cupon no es valido'; end if;
+    if not found then raise exception 'El cupón no es válido'; end if;
     if v_uid is null then raise exception 'Los cupones son solo para usuarios registrados'; end if;
     if v_cupon.tipo = 'bienvenida' and v_perfil.cupon_bienvenida_usado then
-      raise exception 'Ya usaste el cupon de bienvenida';
+      raise exception 'Ya usaste el cupón de bienvenida';
     end if;
     if v_cupon.tipo = 'edad' then
       if v_nac is null or extract(year from age(v_nac))::int < coalesce(v_cupon.edad_minima, 0) then
-        raise exception 'Este cupon no aplica a tu edad';
+        raise exception 'Este cupón no aplica a tu edad';
       end if;
     end if;
-    v_desc := round(v_sub * v_cupon.porcentaje / 100, 2);
+    v_desc := round((v_sub - v_canje) * v_cupon.porcentaje / 100, 2);
   end if;
 
-  v_total := v_sub - v_desc;
+  v_total := greatest(0, round(v_sub - v_canje - v_desc, 2));
 
   if coalesce(p_usar_credito,0) > 0 then
-    if v_uid is null then raise exception 'El credito es solo para usuarios registrados'; end if;
-    v_cred := least(p_usar_credito, v_perfil.credito, v_total);
-    v_total := v_total - v_cred;
+    if v_uid is null then raise exception 'El crédito es solo para usuarios registrados'; end if;
+    v_cred := round(least(p_usar_credito, v_perfil.credito, v_total), 2);
+    v_total := greatest(0, round(v_total - v_cred, 2));
+  end if;
+
+  if p_total_esperado is not null and round(p_total_esperado, 2) <> v_total then
+    raise exception 'El total cambió mientras pagabas. Revisá el resumen de tu compra y volvé a intentar.';
+  end if;
+
+  if v_total > 0 then
+    if p_medio_pago is null or p_medio_pago not in ('tarjeta_credito','tarjeta_debito','mercado_pago') then
+      raise exception 'Elegí un medio de pago para completar la compra';
+    end if;
+    v_medio := p_medio_pago::medio_pago;
+    if v_medio in ('tarjeta_credito','tarjeta_debito')
+       and (coalesce(p_tarjeta_ultimos4,'') !~ '^[0-9]{4}$' or coalesce(trim(p_tarjeta_marca),'') = '') then
+      raise exception 'Faltan los datos de la tarjeta';
+    end if;
+  else
+    v_medio := 'sin_cargo';
   end if;
 
   update compras
-     set subtotal = v_sub, descuento = v_desc, credito_usado = v_cred, total = v_total,
-         cupon_id = v_cupon.id,
+     set subtotal = v_sub, descuento = v_desc, descuento_canjes = v_canje,
+         credito_usado = v_cred, total = v_total, cupon_id = v_cupon.id,
+         medio_pago = v_medio,
+         tarjeta_marca = case when v_medio in ('tarjeta_credito','tarjeta_debito') then trim(p_tarjeta_marca) end,
+         tarjeta_ultimos4 = case when v_medio in ('tarjeta_credito','tarjeta_debito') then p_tarjeta_ultimos4 end,
          puntos_ganados = case when v_uid is null then 0 else floor(v_total)::int end
    where id = v_compra.id
   returning * into v_compra;
+
+  if array_length(v_codigos, 1) > 0 then
+    update canjes set usado = true, usado_en = now(), compra_id = v_compra.id
+     where codigo = any(v_codigos);
+  end if;
 
   if v_uid is not null then
     perform set_config('app.bypass_perfil','on',true);
@@ -223,20 +349,22 @@ create or replace function cancelar_compra(p_compra_id bigint)
 returns compras language plpgsql security definer set search_path = public as $$
 declare v_c compras; v_f funciones;
 begin
-  select * into v_c from compras where id = p_compra_id;
+  select * into v_c from compras where id = p_compra_id for update;
   if not found then raise exception 'La compra no existe'; end if;
   if v_c.usuario_id is distinct from auth.uid() and not es_admin() then
-    raise exception 'No podes cancelar esta compra';
+    raise exception 'No podés cancelar esta compra';
   end if;
   if v_c.estado = 'cancelada' then raise exception 'La compra ya estaba cancelada'; end if;
   if v_c.entrada_validada then raise exception 'La entrada ya fue utilizada'; end if;
+  if v_c.productos_entregados then raise exception 'Los productos del candy bar ya fueron entregados'; end if;
 
   select * into v_f from funciones where id = v_c.funcion_id;
   if v_f.id is not null and v_f.inicio - now() < interval '2 hours' then
-    raise exception 'Solo se puede cancelar hasta 2 horas antes de la funcion';
+    raise exception 'Solo se puede cancelar hasta 2 horas antes de la función';
   end if;
 
   update entradas set activa = false where compra_id = v_c.id;
+  update canjes set usado = false, usado_en = null, compra_id = null where compra_id = v_c.id;
   update compras set estado = 'cancelada' where id = v_c.id returning * into v_c;
 
   if v_c.usuario_id is not null then
@@ -258,14 +386,14 @@ begin
   if not es_empleado() then raise exception 'No autorizado'; end if;
 
   select * into v_c from compras where upper(codigo) = upper(trim(p_codigo));
-  if not found then return jsonb_build_object('ok', false, 'motivo', 'El codigo no existe'); end if;
+  if not found then return jsonb_build_object('ok', false, 'motivo', 'El código no existe'); end if;
   if v_c.estado = 'cancelada' then return jsonb_build_object('ok', false, 'motivo', 'La compra fue cancelada'); end if;
 
   if p_tipo = 'entrada' then
     if v_c.funcion_id is null then return jsonb_build_object('ok', false, 'motivo', 'La compra no incluye entradas'); end if;
     if v_c.entrada_validada then return jsonb_build_object('ok', false, 'motivo', 'La entrada ya fue utilizada'); end if;
     select * into v_f from funciones where id = v_c.funcion_id;
-    if now() > v_f.fin then return jsonb_build_object('ok', false, 'motivo', 'La funcion ya termino'); end if;
+    if now() > v_f.fin then return jsonb_build_object('ok', false, 'motivo', 'La función ya terminó'); end if;
     update compras set entrada_validada = true, entrada_validada_en = now() where id = v_c.id;
   elsif p_tipo = 'candy' then
     if not exists (select 1 from compra_items where compra_id = v_c.id) then
@@ -275,7 +403,7 @@ begin
     update compras set productos_entregados = true, productos_entregados_en = now() where id = v_c.id;
     update compra_items set entregado = true where compra_id = v_c.id;
   else
-    raise exception 'Tipo de validacion invalido';
+    raise exception 'Tipo de validación inválido';
   end if;
 
   perform registrar_log('validar_qr', 'compra', v_c.id::text,
@@ -324,18 +452,26 @@ create or replace function canjear_recompensa(p_recompensa_id bigint)
 returns canjes language plpgsql security definer set search_path = public as $$
 declare v_r recompensas; v_p perfiles; v_c canjes;
 begin
-  if auth.uid() is null then raise exception 'Tenes que iniciar sesion'; end if;
+  if auth.uid() is null then raise exception 'Tenés que iniciar sesión'; end if;
+
   select * into v_r from recompensas where id = p_recompensa_id and activo;
-  if not found then raise exception 'La recompensa no esta disponible'; end if;
-  select * into v_p from perfiles where id = auth.uid();
+  if not found then raise exception 'La recompensa no está disponible'; end if;
+  if v_r.tipo = 'producto' and v_r.producto_id is null then
+    raise exception 'La recompensa no tiene un producto asociado';
+  end if;
+
+  select * into v_p from perfiles where id = auth.uid() for update;
   if v_p.puntos < v_r.costo_puntos then raise exception 'No te alcanzan los puntos'; end if;
 
   perform set_config('app.bypass_perfil','on',true);
   update perfiles set puntos = puntos - v_r.costo_puntos where id = auth.uid();
 
-  insert into canjes (usuario_id, recompensa_id, nombre, puntos_gastados)
-  values (auth.uid(), v_r.id, v_r.nombre, v_r.costo_puntos)
+  insert into canjes (usuario_id, recompensa_id, nombre, puntos_gastados, codigo, tipo, producto_id)
+  values (auth.uid(), v_r.id, v_r.nombre, v_r.costo_puntos,
+          'CJ' || substr(upper(replace(gen_random_uuid()::text, '-', '')), 1, 8),
+          v_r.tipo, v_r.producto_id)
   returning * into v_c;
+
   return v_c;
 end $$;
 

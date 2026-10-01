@@ -127,7 +127,9 @@ grant execute on function butacas_estado(bigint, text)                     to an
 grant execute on function reservar_butacas(bigint, bigint[], text)         to anon, authenticated;
 grant execute on function peliculas_mas_vendidas(int, int)                 to anon, authenticated;
 grant execute on function buscar_compra(text)                              to anon, authenticated;
-grant execute on function registrar_compra(bigint, bigint[], jsonb, text, text, numeric, date, text) to anon, authenticated;
+grant execute on function registrar_compra(bigint, bigint[], jsonb, text, text, numeric, date, text, text[], text, text, text, numeric) to anon, authenticated;
+grant execute on function venta_abierta(bigint)                            to anon, authenticated;
+grant execute on function preventa_vigente(bigint)                         to anon, authenticated;
 grant execute on function cancelar_compra(bigint)                          to authenticated;
 grant execute on function canjear_recompensa(bigint)                       to authenticated;
 grant execute on function mis_peliculas()                                  to authenticated;

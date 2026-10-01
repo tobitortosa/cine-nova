@@ -7,8 +7,13 @@ import { ResumenCompra } from '../../core/models/modelos';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { DuracionPipe } from '../../shared/pipes/duracion.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
+import { MedioPagoPipe } from '../../shared/pipes/medio-pago.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+
+type IconoPago = 'tarjeta' | 'billetera' | 'regalo' | 'desconocido';
+
+const SUFIJO_CANJE = /\s*\(canje\)$/i;
 
 @Component({
   selector: 'app-comprobante',
@@ -17,6 +22,7 @@ import { VacioComponent } from '../../shared/components/vacio.component';
     PrecioPipe,
     DuracionPipe,
     RestriccionPipe,
+    MedioPagoPipe,
     CargandoComponent,
     VacioComponent,
   ],
@@ -39,6 +45,31 @@ export class ComprobanteComponent implements OnInit {
   readonly utilizada = computed(() => this.resumen()?.compra.entrada_validada === true);
   readonly atenuada = computed(() => this.cancelada() || this.utilizada());
   readonly restriccion = computed(() => this.resumen()?.pelicula?.restriccion_edad ?? 0);
+
+  readonly items = computed(() =>
+    (this.resumen()?.items ?? []).map((item) => {
+      const canje = Number(item.precio_unitario) === 0 && SUFIJO_CANJE.test(item.nombre);
+      return {
+        ...item,
+        canje,
+        nombre: canje ? item.nombre.replace(SUFIJO_CANJE, '') : item.nombre,
+      };
+    }),
+  );
+
+  readonly iconoPago = computed<IconoPago>(() => {
+    switch (this.resumen()?.compra.medio_pago) {
+      case 'tarjeta_credito':
+      case 'tarjeta_debito':
+        return 'tarjeta';
+      case 'mercado_pago':
+        return 'billetera';
+      case 'sin_cargo':
+        return 'regalo';
+      default:
+        return 'desconocido';
+    }
+  });
 
   readonly fechaFuncion = computed(() => {
     const momento = this.momentoFuncion();

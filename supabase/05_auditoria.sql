@@ -81,61 +81,6 @@ begin
   end loop;
 end $$;
 
-create or replace function crear_funcion(
-  p_pelicula_id bigint, p_inicio timestamptz,
-  p_formato formato_funcion, p_idioma idioma_funcion,
-  p_precio numeric, p_precio_vip numeric default 0)
-returns funciones language plpgsql security definer set search_path = public as $$
-declare v_dur int; v_fin timestamptz; v_sala bigint; v_row funciones;
-begin
-  if not es_admin() then raise exception 'No autorizado'; end if;
-
-  select duracion_min into v_dur from peliculas where id = p_pelicula_id;
-  if v_dur is null then raise exception 'La pelicula no existe'; end if;
-
-  v_fin := p_inicio + (v_dur || ' minutes')::interval;
-
-  select s.id into v_sala from salas s
-  where not exists (
-    select 1 from funciones f
-    where f.sala_id = s.id
-      and f.ocupacion && tstzrange(p_inicio, v_fin + interval '30 minutes', '[)'))
-  order by s.id limit 1;
-
-  if v_sala is null then
-    raise exception 'No hay salas disponibles en ese horario';
-  end if;
-
-  insert into funciones (pelicula_id, sala_id, inicio, fin, formato, idioma, precio_base, precio_vip, creada_por)
-  values (p_pelicula_id, v_sala, p_inicio, v_fin, p_formato, p_idioma, p_precio, p_precio_vip, auth.uid())
-  returning * into v_row;
-
-  return v_row;
-end $$;
-
-create or replace function alertas_pendientes()
-returns table (pelicula_id bigint, titulo text, imagen_url text)
-language plpgsql security definer set search_path = public as $$
-begin
-  if auth.uid() is null then return; end if;
-  return query
-    with pendientes as (
-      select a.id, p.id as pid, p.titulo, p.imagen_url
-        from alertas_estreno a
-        join peliculas p on p.id = a.pelicula_id
-       where a.usuario_id = auth.uid()
-         and a.notificada = false
-         and p.en_cartelera = true
-    ), marcadas as (
-      update alertas_estreno set notificada = true
-       where id in (select id from pendientes)
-      returning 1
-    )
-    select pendientes.pid, pendientes.titulo, pendientes.imagen_url from pendientes;
-end $$;
-
-grant execute on function alertas_pendientes() to authenticated;
-
 create or replace function limpiar_reservas_vencidas()
 returns void language sql security definer set search_path = public as $$
   delete from reservas where expira_en < now();

@@ -1,5 +1,15 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Title } from '@angular/platform-browser';
 import { PeliculasService } from '../../core/services/peliculas.service';
@@ -11,9 +21,18 @@ import { Funcion, Pelicula, Resenia } from '../../core/models/modelos';
 import { DuracionPipe } from '../../shared/pipes/duracion.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { DesdePipe } from '../../shared/pipes/desde.pipe';
+import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { EstrellasComponent } from '../../shared/components/estrellas.component';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import {
+  DIAS_PREVENTA,
+  finDePreventa,
+  preventaVigente,
+  sumarDias,
+  tienePreventa,
+  ventaAbierta,
+} from '../../shared/utils/ventas';
 
 interface GrupoFunciones {
   clave: string;
@@ -32,6 +51,7 @@ const LARGO_MAXIMO = 280;
     DuracionPipe,
     RestriccionPipe,
     DesdePipe,
+    PrecioPipe,
     EstrellasComponent,
     CargandoComponent,
     VacioComponent,
@@ -46,6 +66,9 @@ export class DetallePeliculaComponent {
   private readonly avisos = inject(NotificacionesService);
   private readonly titulo = inject(Title);
   private readonly fb = inject(FormBuilder);
+  private readonly ruta = inject(ActivatedRoute);
+  private readonly anfitrion = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   readonly auth = inject(AuthService);
 
@@ -77,6 +100,28 @@ export class DetallePeliculaComponent {
   readonly totalResenias = computed(() => this.resenias().length);
 
   readonly miUsuario = computed(() => this.auth.perfil()?.id ?? '');
+
+  readonly ventaHabilitada = computed(() => ventaAbierta(this.pelicula()));
+
+  readonly enPreventa = computed(() => preventaVigente(this.pelicula()));
+
+  readonly conPreventa = computed(() => tienePreventa(this.pelicula()));
+
+  readonly estreno = computed(() => {
+    const fecha = this.pelicula()?.fecha_estreno;
+    return fecha ? this.fechaSimple(fecha) : '';
+  });
+
+  readonly finPreventa = computed(() => {
+    const fin = finDePreventa(this.pelicula());
+    return fin ? this.fechaSimple(fin) : '';
+  });
+
+  readonly aperturaVenta = computed(() => {
+    const fecha = this.pelicula()?.fecha_estreno;
+    if (!fecha) return '';
+    return this.fechaSimple(sumarDias(fecha, this.conPreventa() ? -DIAS_PREVENTA : 0));
+  });
 
   readonly grupos = computed<GrupoFunciones[]>(() => {
     const mapa = new Map<string, Funcion[]>();
@@ -193,7 +238,21 @@ export class DetallePeliculaComponent {
       this.avisos.error(e instanceof Error ? e.message : 'No se pudo cargar la película');
     } finally {
       this.cargando.set(false);
+      this.irAlAncla();
     }
+  }
+
+  private irAlAncla(): void {
+    const ancla = this.ruta.snapshot.fragment;
+    if (!ancla) return;
+
+    afterNextRender(
+      () => {
+        const destino = this.anfitrion.nativeElement.ownerDocument.getElementById(ancla);
+        destino?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
+      { injector: this.injector },
+    );
   }
 
   private async traerResenias(id: number): Promise<void> {
@@ -235,6 +294,13 @@ export class DetallePeliculaComponent {
     }).format(this.aFecha(clave));
 
     return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  private fechaSimple(valor: string): string {
+    const fecha = this.aFecha(valor.slice(0, 10));
+    const opciones: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
+    if (fecha.getFullYear() !== new Date().getFullYear()) opciones.year = 'numeric';
+    return new Intl.DateTimeFormat('es-AR', opciones).format(fecha);
   }
 
   private fechaLarga(clave: string): string {

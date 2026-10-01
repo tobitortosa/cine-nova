@@ -3,6 +3,7 @@ import { SupabaseService } from './supabase.service';
 import { ButacasService } from './butacas.service';
 import {
   Compra,
+  DatosPago,
   ItemCarrito,
   MiPelicula,
   ResultadoValidacion,
@@ -22,6 +23,9 @@ export class ComprasService {
     cupon?: string | null;
     usarCredito?: number;
     fechaNacimiento?: string | null;
+    canjes?: string[];
+    pago?: DatosPago | null;
+    totalEsperado?: number | null;
   }): Promise<Compra> {
     const { data, error } = await this.supabase.client.rpc('registrar_compra', {
       p_funcion_id: datos.funcionId,
@@ -38,6 +42,11 @@ export class ComprasService {
       p_usar_credito: datos.usarCredito ?? 0,
       p_fecha_nacimiento: datos.fechaNacimiento ?? null,
       p_sesion: this.butacas.sesion,
+      p_canjes: datos.canjes?.length ? datos.canjes : null,
+      p_medio_pago: datos.pago?.medio ?? null,
+      p_tarjeta_marca: datos.pago?.marca ?? null,
+      p_tarjeta_ultimos4: datos.pago?.ultimos4 ?? null,
+      p_total_esperado: datos.totalEsperado ?? null,
     });
 
     if (error) {

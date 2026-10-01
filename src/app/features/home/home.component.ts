@@ -9,6 +9,7 @@ import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { EstrellasComponent } from '../../shared/components/estrellas.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { diasHasta, preventaVigente } from '../../shared/utils/ventas';
 
 interface Estreno {
   pelicula: Pelicula;
@@ -17,7 +18,6 @@ interface Estreno {
   preventa: boolean;
 }
 
-const MS_POR_DIA = 86400000;
 const ROTACION_MS = 7000;
 const LARGO_SINOPSIS = 240;
 
@@ -77,15 +77,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   );
 
   readonly estrenos = computed<Estreno[]>(() =>
-    this.proximos().map((pelicula) => {
-      const dias = this.diasHasta(pelicula.fecha_estreno);
-      return {
-        pelicula,
-        fecha: this.textoFecha(pelicula.fecha_estreno),
-        cuenta: this.textoCuenta(dias),
-        preventa: dias !== null && dias >= 0 && dias <= 7,
-      };
-    }),
+    this.proximos().map((pelicula) => ({
+      pelicula,
+      fecha: this.textoFecha(pelicula.fecha_estreno),
+      cuenta: this.textoCuenta(diasHasta(pelicula.fecha_estreno)),
+      preventa: preventaVigente(pelicula),
+    })),
   );
 
   readonly combosDestacados = computed<Combo[]>(() => this.combos().slice(0, 2));
@@ -163,14 +160,6 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (partes.length !== 3 || partes.some((parte) => !Number.isFinite(parte))) return null;
     const fecha = new Date(partes[0], partes[1] - 1, partes[2]);
     return Number.isNaN(fecha.getTime()) ? null : fecha;
-  }
-
-  private diasHasta(valor: string | null): number | null {
-    const fecha = this.aFecha(valor);
-    if (!fecha) return null;
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    return Math.round((fecha.getTime() - hoy.getTime()) / MS_POR_DIA);
   }
 
   private textoFecha(valor: string | null): string {

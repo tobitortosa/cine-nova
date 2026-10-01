@@ -16,6 +16,22 @@ Sistema de venta y gestión de entradas para un complejo de cine. Trabajo Práct
 
 También se puede comprar sin registrarse. Cupones disponibles: `BIENVENIDA` (20 %, primera compra), `PLATEA50` (25 %, mayores de 50), `JUBILADOS` (35 %, mayores de 65).
 
+### Tarjetas de prueba
+
+El pago es simulado: no se procesa ningún cobro real. La pasarela simulada responde según el número de tarjeta, con cualquier vencimiento futuro y cualquier CVV.
+
+| Número | Marca | Resultado |
+|---|---|---|
+| `4242 4242 4242 4242` | Visa | Aprobada |
+| `5555 5555 5555 4444` | Mastercard | Aprobada |
+| `3782 822463 10005` | American Express | Aprobada (CVV de 4 dígitos) |
+| `4000 0000 0000 0002` | Visa | Rechazada por el emisor |
+| `4000 0000 0000 9995` | Visa | Sin fondos |
+
+También se puede elegir Mercado Pago, que se aprueba siempre.
+
+"Ciudad Reflejo" tiene la **preventa abierta**: se compra desde Próximamente a precio especial hasta el día anterior al estreno.
+
 La aplicación cubre los tres frentes que pidió el cliente: el sitio público donde se compran entradas y productos del candy bar, el panel de administración que controla toda la operación, y la pantalla que usan los empleados para validar los códigos QR en la puerta de la sala y en el mostrador.
 
 ## Stack
@@ -86,7 +102,33 @@ La ventana se mantiene con un trigger `BEFORE INSERT OR UPDATE` en lugar de una 
 
 **Asignación automática de sala.** La función `crear_funcion()` recibe película y horario, calcula el fin con la duración, busca la primera sala sin conflicto y la inserta. El administrador nunca elige sala, tal como pidió el cliente.
 
-**La compra es atómica.** `registrar_compra()` valida la edad contra la restricción de la película, calcula precios distinguiendo butaca estándar, VIP y preventa, aplica el cupón, descuenta el crédito, inserta entradas y productos, acumula puntos y libera las reservas temporales. Todo en una sola transacción: o se hace completo o no se hace nada.
+**La compra es atómica.** `registrar_compra()` valida la edad contra la restricción de la película, calcula precios distinguiendo butaca estándar, VIP y preventa, aplica los canjes y el cupón, descuenta el crédito, exige el medio de pago, inserta entradas y productos, acumula puntos y libera las reservas temporales. Todo en una sola transacción: o se hace completo o no se hace nada.
+
+### El pago es simulado, pero la base no le cree al navegador
+
+El flujo es el de un sitio real: se eligen butacas, se paga online y el QR que se recibe ya es la entrada paga. No hay una pasarela productiva, porque no la pidió el cliente ni la consigna; en su lugar, `PasarelaPagoService` simula una con tarjetas de prueba, demoras y rechazos. Como es un servicio inyectable, integrar Mercado Pago o cualquier otro proveedor sería reemplazar ese servicio sin tocar el componente.
+
+Lo importante es que nada de lo que calcula el frontend se toma como cierto:
+
+- **Los precios salen del catálogo.** El carrito se guarda en `localStorage`, que el usuario puede editar. Por eso `registrar_compra()` ignora el precio y el nombre que manda el cliente y los busca en `productos` y `combos`, exigiendo que estén activos.
+- **El total se verifica.** El frontend manda el monto que cobró la pasarela y la base lo compara con el que calcula ella. Si difieren (por ejemplo porque el crédito ya se había usado en otra pestaña), la compra se rechaza en lugar de guardar un total distinto del cobrado.
+- **Los datos de la tarjeta no se guardan.** El número completo y el CVV nunca salen del navegador. A la base solo llegan el medio, la marca y los últimos cuatro dígitos, con una restricción que valida que sean cuatro números.
+
+Los validadores de tarjeta son validadores propios de Reactive Forms: algoritmo de Luhn, largo según la marca, vencimiento futuro, CVV de 3 o 4 dígitos según sea American Express (validador de grupo, porque depende de dos campos) y titular con nombre y apellido.
+
+### Canje de puntos
+
+Cada canje genera un código. En el paso de pago el usuario elige qué canjes aplicar: una entrada gratis descuenta el precio de una butaca estándar, y un producto se agrega al pedido a $0. La base verifica que el canje sea del usuario, que no se haya usado y que no haya más canjes de entrada que butacas, y lo bloquea con `select ... for update` para que no se pueda usar dos veces al mismo tiempo. Si la compra se cancela, el canje vuelve a quedar disponible.
+
+### Preventa y apertura automática de la venta
+
+`venta_abierta()` y `preventa_vigente()` deciden en la base si una película se puede vender y a qué precio. Si tiene precio de preventa, la venta se abre 7 días antes del estreno; si no, el día del estreno. `shared/utils/ventas.ts` replica exactamente esas reglas para mostrar los precios antes de pagar.
+
+Un job de `pg_cron` corre cada hora: pasa a cartelera las películas que ya se estrenaron y avisa a quienes activaron la alerta de una película cuya venta acaba de abrir.
+
+### Correos automáticos
+
+PostgreSQL manda los correos directamente a la API de Brevo con `pg_net`, sin servidor intermedio: la compra confirmada (con el código y el enlace al QR), la cancelación con el crédito acreditado, la bienvenida con el cupón y la apertura de venta para las alertas. La clave de Brevo vive en la tabla `configuracion`, que tiene RLS activado y ninguna política: no la puede leer ni `anon` ni `authenticated`, solo las funciones `security definer`. Cada envío queda registrado en la tabla `correos`.
 
 ### Disponibilidad de butacas en tiempo real
 
@@ -114,8 +156,18 @@ Los scripts están en `supabase/` y se ejecutan en orden:
 | `02_rpc.sql` | Funciones de negocio |
 | `03_rls.sql` | Row Level Security, políticas y permisos |
 | `04_seed.sql` | Datos de prueba |
+| `05_auditoria.sql` | Log de actividad por triggers |
+| `06_usuarios_demo.sql` | Cuentas de prueba |
+| `07_correos.sql` | Envío de correos y apertura automática de ventas |
 
 Cada script es idempotente: se puede volver a ejecutar sin romper nada.
+
+Para que los correos salgan hay que cargar una sola vez, desde el SQL Editor, la clave de la API de Brevo y una dirección de remitente verificada en Brevo:
+
+```sql
+update configuracion set valor = 'xkeysib-...' where clave = 'brevo_api_key';
+update configuracion set valor = 'remitente@verificado.com' where clave = 'correo_remitente';
+```
 
 ### Modelo de sala
 

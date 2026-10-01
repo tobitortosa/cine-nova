@@ -118,6 +118,60 @@
       </ul>
     }
 
+    @if (paraUsar().length > 0) {
+      <h2 class="titulo-bloque">Tus canjes para usar</h2>
+
+      <ul class="cupones">
+        @for (canje of paraUsar(); track canje.id) {
+          <li class="cupon" [class.nuevo]="canje.id === recienCreado()">
+            <div class="cupon-cuerpo">
+              <div class="cupon-cabecera">
+                <h3>{{ canje.nombre }}</h3>
+                @if (canje.id === recienCreado()) {
+                  <span class="chip chip-accent">Recién canjeado</span>
+                }
+              </div>
+
+              <span class="rotulo">Tu código</span>
+              <strong class="codigo">{{ canje.codigo }}</strong>
+              <span class="fecha">Canjeado el {{ fechaDe(canje) }}</span>
+            </div>
+
+            <div class="cupon-pie">
+              <p>Usalo en el paso Pagar de tu próxima compra</p>
+              <a routerLink="/peliculas" class="btn btn-primario">Elegir película</a>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (noDisponibles().length > 0) {
+      <h2 class="titulo-bloque">Canjes no disponibles</h2>
+
+      <ul class="cupones">
+        @for (canje of noDisponibles(); track canje.id) {
+          <li class="cupon inactivo">
+            <div class="cupon-cuerpo">
+              <div class="cupon-cabecera">
+                <h3>{{ canje.nombre }}</h3>
+                <span class="chip chip-peligro">No disponible</span>
+              </div>
+
+              <span class="rotulo">Tu código</span>
+              <strong class="codigo">{{ canje.codigo }}</strong>
+              <span class="fecha">Canjeado el {{ fechaDe(canje) }}</span>
+            </div>
+
+            <div class="cupon-pie">
+              <p class="motivo">No disponible: el producto fue dado de baja.</p>
+              <p>No se puede usar en la web. Podés consultar por este canje en el cine mostrando el código.</p>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
     <h2 class="titulo-bloque">Historial de canjes</h2>
 
     @if (canjes().length === 0) {
@@ -130,9 +184,29 @@
           <li class="canje">
             <div class="detalle">
               <strong>{{ canje.nombre }}</strong>
-              <span class="fecha">{{ fechaDe(canje) }}</span>
+              <span class="fecha">
+                {{ fechaDe(canje) }}
+                @if (canje.codigo) {
+                  · <span class="codigo-chico">{{ canje.codigo }}</span>
+                }
+              </span>
+              @if (!canje.usado && dadoDeBaja(canje)) {
+                <span class="motivo-baja">
+                  No disponible: el producto fue dado de baja. Podés consultar por este canje en el cine.
+                </span>
+              }
             </div>
-            <span class="gastados">-{{ numero(canje.puntos_gastados) }} pts</span>
+
+            <div class="estado">
+              @if (canje.usado) {
+                <span class="chip chip-usado">{{ etiquetaUso(canje) }}</span>
+              } @else if (dadoDeBaja(canje)) {
+                <span class="chip chip-peligro">No disponible</span>
+              } @else {
+                <span class="chip chip-disponible">Disponible</span>
+              }
+              <span class="gastados">-{{ numero(canje.puntos_gastados) }} pts</span>
+            </div>
           </li>
         }
       </ul>

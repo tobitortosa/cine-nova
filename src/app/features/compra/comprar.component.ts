@@ -1,6 +1,13 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  ValidatorFn,
+  Validators,
+} from '@angular/forms';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { Subscription } from 'rxjs';
 
@@ -11,16 +18,56 @@ import { CarritoService } from '../../core/services/carrito.service';
 import { ComprasService } from '../../core/services/compras.service';
 import { FuncionesService } from '../../core/services/funciones.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
+import {
+  MedioCobrable,
+  PasarelaPagoService,
+  TarjetaDePrueba,
+} from '../../core/services/pasarela-pago.service';
 import { PromocionesService } from '../../core/services/promociones.service';
-import { Butaca, Combo, Cupon, Funcion, Producto, TipoButaca } from '../../core/models/modelos';
+import {
+  Butaca,
+  Canje,
+  Combo,
+  Cupon,
+  DatosPago,
+  Funcion,
+  ItemCarrito,
+  Producto,
+  TipoButaca,
+} from '../../core/models/modelos';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ButacaPipe } from '../../shared/pipes/butaca.pipe';
 import { DuracionPipe } from '../../shared/pipes/duracion.pipe';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
+import {
+  DIAS_PREVENTA,
+  finDePreventa,
+  precioEntrada,
+  preventaVigente,
+  sumarDias,
+  tienePreventa,
+  ventaAbierta,
+} from '../../shared/utils/ventas';
+import {
+  MarcaTarjeta,
+  cvvSegunMarcaValidator,
+  detectarMarca,
+  formatearNumeroTarjeta,
+  formatearVencimiento,
+  largoCvv,
+  numeroTarjetaValidator,
+  soloDigitos,
+  titularValidator,
+  vencimientoValidator,
+} from '../../shared/validators/tarjeta.validators';
 
 type EstadoVisual = 'libre' | 'vendida' | 'reservada';
+
+type CampoTarjeta = 'numero' | 'vencimiento' | 'cvv' | 'titular';
+
+type FasePago = 'pago' | 'registro';
 
 interface ButacaVista {
   butaca: Butaca;
@@ -44,8 +91,85 @@ interface Etapa {
   nombre: string;
 }
 
+interface CanjeVista {
+  canje: Canje;
+  titulo: string;
+  esEntrada: boolean;
+  elegido: boolean;
+  bloqueado: boolean;
+}
+
+interface ProductoCanjeado {
+  codigo: string;
+  nombre: string;
+}
+
+interface OpcionMedio {
+  valor: MedioCobrable;
+  nombre: string;
+  detalle: string;
+}
+
+interface VistaTarjeta {
+  numero: string;
+  vencimiento: string;
+  titular: string;
+}
+
+interface MontosCompra {
+  subtotal: number;
+  canjes: number;
+  descuento: number;
+  credito: number;
+  total: number;
+}
+
+interface FotoCompra {
+  funcionId: number;
+  butacas: number[];
+  items: ItemCarrito[];
+  email: string;
+  cupon: string | null;
+  usarCredito: number;
+  canjes: string[];
+  fechaNacimiento: string | null;
+  medio: MedioCobrable;
+  numero: string;
+  total: number;
+}
+
 const MAXIMO_BUTACAS = 10;
 const SEGUNDOS_RESERVA = 480;
+const TITULAR_DE_EJEMPLO = 'Lucía Fernández';
+const LARGO_MAXIMO_CVV = 4;
+
+const VENTA_CERRADA = 'La venta para esta película todavía no abrió';
+const DEBITO_SIN_AMEX = 'Para débito aceptamos Visa o Mastercard';
+const TOTAL_ACTUALIZADO = 'Actualizamos el total de tu compra, revisalo y confirmá de nuevo.';
+const TOTAL_CAMBIADO = 'El total cambió';
+const VENTA_NO_ABIERTA = 'todavía no está abierta';
+const BUTACA_PERDIDA = 'Una de tus butacas se vendió mientras confirmabas. Revisá tu selección antes de pagar.';
+const PAGO_ANULADO = 'Anulamos el pago simulado: no se te cobró nada.';
+const BUTACA_VENDIDA =
+  'Una de tus butacas se vendió mientras pagabas. Anulamos el pago simulado: no se te cobró nada.';
+
+function aCentavos(monto: number | null | undefined): number {
+  return Math.round(Number(monto ?? 0) * 100);
+}
+
+const debitoSinAmexValidator: ValidatorFn = (grupo: AbstractControl): ValidationErrors | null => {
+  if (grupo.parent?.get('medio')?.value !== 'tarjeta_debito') return null;
+  return detectarMarca(grupo.get('numero')?.value) === 'American Express'
+    ? { debitoSinAmex: true }
+    : null;
+};
+
+const FALTANTES: Record<CampoTarjeta, string> = {
+  numero: 'Ingresá el número de la tarjeta',
+  vencimiento: 'Ingresá el vencimiento de la tarjeta',
+  cvv: 'Ingresá el código de seguridad',
+  titular: 'Ingresá el nombre del titular',
+};
 
 @Component({
   selector: 'app-comprar',
@@ -71,6 +195,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
   private readonly candy = inject(CandyService);
   private readonly compras = inject(ComprasService);
   private readonly promociones = inject(PromocionesService);
+  private readonly pasarela = inject(PasarelaPagoService);
   private readonly avisos = inject(NotificacionesService);
 
   readonly carrito = inject(CarritoService);
@@ -82,8 +207,17 @@ export class ComprarComponent implements OnInit, OnDestroy {
     { numero: 3, nombre: 'Pagar' },
   ];
 
+  readonly mediosPago: OpcionMedio[] = [
+    { valor: 'tarjeta_credito', nombre: 'Tarjeta de crédito', detalle: 'Visa, Mastercard o American Express' },
+    { valor: 'tarjeta_debito', nombre: 'Tarjeta de débito', detalle: 'Débito Visa o Mastercard' },
+    { valor: 'mercado_pago', nombre: 'Mercado Pago', detalle: 'Pagás con tu cuenta, sin datos de tarjeta' },
+  ];
+
+  readonly tarjetasDePrueba: TarjetaDePrueba[] = this.pasarela.tarjetasDePrueba;
+
   readonly paso = signal(1);
   readonly cargando = signal(true);
+  readonly ventaCerrada = signal(false);
   readonly funcion = signal<Funcion | null>(null);
   readonly butacasSala = signal<Butaca[]>([]);
   readonly estados = signal<Map<number, EstadoVisual>>(new Map());
@@ -98,17 +232,43 @@ export class ComprarComponent implements OnInit, OnDestroy {
   readonly cuponAplicado = signal<Cupon | null>(null);
   readonly creditoActivo = signal(false);
 
+  readonly canjes = signal<Canje[]>([]);
+  private readonly canjesElegidos = signal<string[]>([]);
+
+  readonly medioElegido = signal<MedioCobrable>('tarjeta_credito');
+  readonly tarjetaVista = signal<VistaTarjeta>({ numero: '', vencimiento: '', titular: '' });
+  readonly pruebasAbiertas = signal(false);
+  readonly fasePago = signal<FasePago | null>(null);
+  readonly montoEnProceso = signal(0);
+  readonly errorPago = signal<string | null>(null);
+  readonly emailDeCuenta = signal(false);
+
   readonly formulario = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
     fechaNacimiento: [''],
     cupon: [''],
     usarCredito: [false],
+    medio: this.fb.nonNullable.control<MedioCobrable>('tarjeta_credito', Validators.required),
+    tarjeta: this.fb.nonNullable.group(
+      {
+        numero: ['', [Validators.required, numeroTarjetaValidator]],
+        vencimiento: ['', [Validators.required, vencimientoValidator]],
+        cvv: ['', [Validators.required]],
+        titular: ['', [Validators.required, titularValidator]],
+      },
+      { validators: [cvvSegunMarcaValidator('numero', 'cvv'), debitoSinAmexValidator] },
+    ),
   });
+
+  readonly grupoTarjeta = this.formulario.controls.tarjeta;
 
   private funcionId = 0;
   private canal: RealtimeChannel | null = null;
   private temporizador: ReturnType<typeof setInterval> | null = null;
-  private vigilanteCredito: Subscription | null = null;
+  private readonly vigilantes = new Subscription();
+  private destruido = false;
+  private vencimientoPendiente = false;
+  private cargaCatalogo: Promise<boolean> | null = null;
 
   readonly filas = computed<FilaVista[]>(() => {
     const mapa = this.estados();
@@ -183,29 +343,193 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
   readonly creditoDisponible = computed(() => this.auth.perfil()?.credito ?? 0);
 
-  readonly descuento = computed(() => {
-    const cupon = this.cuponAplicado();
-    if (!cupon) return 0;
-    return Math.round(this.carrito.subtotal() * cupon.porcentaje) / 100;
+  readonly enPreventa = computed(() => preventaVigente(this.funcion()?.pelicula));
+
+  readonly finPreventa = computed(() => {
+    const fin = finDePreventa(this.funcion()?.pelicula);
+    return fin ? this.fechaLarga(fin) : null;
   });
 
-  readonly creditoUsado = computed(() => {
-    if (!this.creditoActivo() || !this.auth.estaLogueado()) return 0;
-    const restante = this.carrito.subtotal() - this.descuento();
-    return Math.max(0, Math.min(this.creditoDisponible(), restante));
+  readonly textoApertura = computed(() => {
+    const pelicula = this.funcion()?.pelicula;
+    const titulo = pelicula?.titulo ? `«${pelicula.titulo}»` : 'esta película';
+
+    if (!pelicula?.fecha_estreno) {
+      return `Todavía no hay una fecha confirmada para la venta de entradas de ${titulo}.`;
+    }
+
+    const conPreventa = tienePreventa(pelicula);
+    const apertura = this.fechaLarga(
+      sumarDias(pelicula.fecha_estreno, conPreventa ? -DIAS_PREVENTA : 0),
+    );
+
+    return conPreventa
+      ? `Las entradas para ${titulo} se venden desde el ${apertura}, en preventa.`
+      : `Las entradas para ${titulo} se venden desde el ${apertura}.`;
   });
 
-  readonly total = computed(() =>
-    Math.max(0, this.carrito.subtotal() - this.descuento() - this.creditoUsado()),
+  readonly precioEstandar = computed(() => precioEntrada(this.carrito.funcion(), 'estandar'));
+
+  readonly precioVip = computed(() => precioEntrada(this.carrito.funcion(), 'vip'));
+
+  private readonly nombresProductos = computed(
+    () => new Map(this.productos().map((producto) => [producto.id, producto.nombre])),
   );
+
+  readonly canjesAplicados = computed<Canje[]>(() => {
+    if (!this.auth.estaLogueado()) return [];
+
+    const elegidos = new Set(this.canjesElegidos());
+    let cupo = this.carrito.butacas().length;
+
+    return this.canjes().filter((canje) => {
+      if (!elegidos.has(canje.codigo)) return false;
+      if (canje.tipo !== 'entrada') return true;
+      if (cupo <= 0) return false;
+      cupo -= 1;
+      return true;
+    });
+  });
+
+  readonly entradasCanjeadas = computed(
+    () => this.canjesAplicados().filter((canje) => canje.tipo === 'entrada').length,
+  );
+
+  readonly productosCanjeados = computed<ProductoCanjeado[]>(() => {
+    const nombres = this.nombresProductos();
+    return this.canjesAplicados()
+      .filter((canje) => canje.tipo === 'producto')
+      .map((canje) => ({ codigo: canje.codigo, nombre: this.nombreProducto(canje, nombres) }));
+  });
+
+  readonly canjesVista = computed<CanjeVista[]>(() => {
+    if (!this.auth.estaLogueado()) return [];
+
+    const aplicados = new Set(this.canjesAplicados().map((canje) => canje.codigo));
+    const sinCupo = this.entradasCanjeadas() >= this.carrito.butacas().length;
+    const nombres = this.nombresProductos();
+
+    return this.canjes().map((canje) => {
+      const esEntrada = canje.tipo === 'entrada';
+      const elegido = aplicados.has(canje.codigo);
+      return {
+        canje,
+        esEntrada,
+        elegido,
+        bloqueado: esEntrada && !elegido && sinCupo,
+        titulo: esEntrada ? 'Entrada gratis' : this.nombreProducto(canje, nombres),
+      };
+    });
+  });
+
+  readonly hayEntradasBloqueadas = computed(() => this.canjesVista().some((vista) => vista.bloqueado));
+
+  private readonly montos = computed<MontosCompra>(() => {
+    const logueado = this.auth.estaLogueado();
+
+    const entradas = this.carrito
+      .butacas()
+      .reduce((suma, butaca) => suma + aCentavos(this.carrito.precioDe(butaca)), 0);
+    const productos = this.carrito
+      .items()
+      .reduce((suma, item) => suma + item.cantidad * aCentavos(item.precio_unitario), 0);
+    const subtotal = entradas + productos;
+
+    const canjes = Math.min(
+      this.entradasCanjeadas() * aCentavos(this.carrito.precioEstandar()),
+      entradas,
+    );
+
+    const cupon = this.cuponAplicado();
+    const descuento =
+      cupon && logueado
+        ? Math.round(((subtotal - canjes) * aCentavos(cupon.porcentaje)) / 10000)
+        : 0;
+
+    const antesDelCredito = Math.max(0, subtotal - canjes - descuento);
+    const credito =
+      this.creditoActivo() && logueado
+        ? Math.max(0, Math.min(aCentavos(this.creditoDisponible()), antesDelCredito))
+        : 0;
+
+    return {
+      subtotal,
+      canjes,
+      descuento,
+      credito,
+      total: Math.max(0, antesDelCredito - credito),
+    };
+  });
+
+  readonly subtotal = computed(() => this.montos().subtotal / 100);
+
+  readonly descuentoCanjes = computed(() => this.montos().canjes / 100);
+
+  readonly descuento = computed(() => this.montos().descuento / 100);
+
+  readonly creditoUsado = computed(() => this.montos().credito / 100);
+
+  readonly total = computed(() => this.montos().total / 100);
 
   readonly puntosGanados = computed(() =>
-    this.auth.estaLogueado() ? Math.floor(this.total()) : 0,
+    this.auth.estaLogueado() ? Math.floor(this.montos().total / 100) : 0,
   );
 
+  readonly esTarjeta = computed(() => this.medioElegido() !== 'mercado_pago');
+
+  readonly pideTarjeta = computed(() => this.total() > 0 && this.esTarjeta());
+
+  readonly marca = computed<MarcaTarjeta | null>(() => detectarMarca(this.tarjetaVista().numero));
+
+  readonly largoCodigo = computed(() => largoCvv(this.tarjetaVista().numero));
+
+  readonly numeroVista = computed<string[]>(() => {
+    const digitos = soloDigitos(this.tarjetaVista().numero);
+    const bloques =
+      this.marca() === 'American Express'
+        ? [4, 6, 5]
+        : digitos.length > 16
+          ? [4, 4, 4, 4, 3]
+          : [4, 4, 4, 4];
+
+    let inicio = 0;
+
+    return bloques.map((cantidad) => {
+      let parte = '';
+      for (let i = inicio; i < inicio + cantidad; i++) {
+        const visible = i < digitos.length && (i < 4 || i >= digitos.length - 4);
+        parte += visible ? digitos[i] : '•';
+      }
+      inicio += cantidad;
+      return parte;
+    });
+  });
+
+  private readonly vigilanteTarjeta = effect(() => {
+    const necesaria = this.pideTarjeta();
+    untracked(() => this.ajustarGrupoTarjeta(necesaria));
+  });
+
   async ngOnInit(): Promise<void> {
-    this.vigilanteCredito = this.formulario.controls.usarCredito.valueChanges.subscribe((valor) =>
-      this.creditoActivo.set(valor === true),
+    this.vigilantes.add(
+      this.formulario.controls.usarCredito.valueChanges.subscribe((valor) =>
+        this.creditoActivo.set(valor === true),
+      ),
+    );
+
+    this.vigilantes.add(
+      this.formulario.controls.medio.valueChanges.subscribe((medio) => {
+        this.medioElegido.set(medio);
+        this.errorPago.set(null);
+        this.grupoTarjeta.updateValueAndValidity({ emitEvent: false });
+      }),
+    );
+
+    this.vigilantes.add(
+      this.grupoTarjeta.valueChanges.subscribe(() => {
+        this.formatearTarjeta();
+        if (!this.procesando()) this.errorPago.set(null);
+      }),
     );
 
     const crudo = this.ruta.snapshot.paramMap.get('funcionId');
@@ -221,6 +545,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
     try {
       const funcion = await this.funciones.obtener(id);
+      if (this.destruido) return;
 
       if (!funcion) {
         this.avisos.error('No encontramos esa función');
@@ -228,28 +553,54 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }
 
       this.funcion.set(funcion);
+
+      if (!ventaAbierta(funcion.pelicula)) {
+        this.ventaCerrada.set(true);
+        return;
+      }
+
       this.carrito.setFuncion(funcion);
-      this.butacasSala.set(await this.mapaButacas.porSala(funcion.sala_id));
+
+      const butacas = await this.mapaButacas.porSala(funcion.sala_id);
+      if (this.destruido) return;
+      this.butacasSala.set(butacas);
+
       await this.cargarEstado();
+      if (this.destruido) return;
 
       if (this.carrito.butacas().length > 0) {
         await this.sincronizarReserva();
+        if (this.destruido) return;
       }
 
-      this.canal = this.mapaButacas.escuchar(id, () => {
+      const canal = this.mapaButacas.escuchar(id, () => {
         void this.cargarEstado();
       });
+
+      if (this.destruido) {
+        void this.mapaButacas.dejarDeEscuchar(canal);
+        return;
+      }
+
+      this.canal = canal;
     } catch (e) {
-      this.avisos.error(e instanceof Error ? e.message : 'No pudimos cargar la función');
+      if (!this.destruido) {
+        this.avisos.error(e instanceof Error ? e.message : 'No pudimos cargar la función');
+      }
     } finally {
-      this.cargando.set(false);
-      this.prepararFormulario();
+      if (!this.destruido) {
+        this.cargando.set(false);
+        this.prepararFormulario();
+      }
     }
   }
 
   ngOnDestroy(): void {
+    this.destruido = true;
     this.detenerCuenta();
-    this.vigilanteCredito?.unsubscribe();
+    this.vigilantes.unsubscribe();
+    this.vigilanteTarjeta.destroy();
+    this.grupoTarjeta.reset();
 
     if (this.canal) {
       void this.mapaButacas.dejarDeEscuchar(this.canal);
@@ -258,7 +609,11 @@ export class ComprarComponent implements OnInit, OnDestroy {
   }
 
   irAPaso(numero: number): void {
-    if (numero === this.paso()) return;
+    if (numero === this.paso() || this.procesando()) return;
+
+    if (this.paso() === 3) {
+      this.limpiarPago();
+    }
 
     if (numero > 1 && this.carrito.butacas().length === 0) {
       this.avisos.error('Elegí al menos una butaca para continuar');
@@ -267,11 +622,14 @@ export class ComprarComponent implements OnInit, OnDestroy {
     }
 
     if (numero === 2) {
-      void this.cargarCandy();
+      void this.sincronizarCatalogo();
     }
 
     if (numero === 3) {
+      this.errorPago.set(null);
       this.prepararFormulario();
+      void this.prepararPago();
+      void this.cargarCanjes();
     }
 
     this.paso.set(numero);
@@ -373,6 +731,8 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
     try {
       const lista = await this.promociones.cupones();
+      if (this.destruido || this.procesando()) return;
+
       const encontrado = lista.find(
         (cupon) => cupon.codigo.toUpperCase() === codigo.toUpperCase() && cupon.activo,
       );
@@ -393,8 +753,10 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }
 
       this.cuponAplicado.set(encontrado);
+      this.errorPago.set(null);
       this.avisos.exito(`Cupón aplicado: ${encontrado.porcentaje}% de descuento`);
     } catch (e) {
+      if (this.destruido || this.procesando()) return;
       this.cuponAplicado.set(null);
       this.avisos.error(e instanceof Error ? e.message : 'No pudimos aplicar el cupón');
     } finally {
@@ -404,27 +766,114 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
   quitarCupon(): void {
     this.cuponAplicado.set(null);
+    this.errorPago.set(null);
     this.formulario.controls.cupon.setValue('');
+  }
+
+  alternarCanje(vista: CanjeVista): void {
+    if (this.procesando() || vista.bloqueado) return;
+
+    this.errorPago.set(null);
+    const actuales = this.canjesAplicados().map((canje) => canje.codigo);
+
+    this.canjesElegidos.set(
+      vista.elegido
+        ? actuales.filter((codigo) => codigo !== vista.canje.codigo)
+        : [...actuales, vista.canje.codigo],
+    );
+  }
+
+  alternarPruebas(): void {
+    this.pruebasAbiertas.update((abiertas) => !abiertas);
+  }
+
+  usarTarjetaDePrueba(prueba: TarjetaDePrueba): void {
+    if (this.procesando()) return;
+
+    if (this.formulario.controls.medio.value === 'mercado_pago') {
+      this.formulario.controls.medio.setValue('tarjeta_credito');
+    }
+
+    this.ajustarGrupoTarjeta();
+
+    const controles = this.grupoTarjeta.controls;
+    const cambios: Partial<VistaTarjeta> = { numero: prueba.numero };
+
+    if (!controles.vencimiento.value.trim()) {
+      cambios.vencimiento = this.vencimientoDeEjemplo();
+    }
+
+    if (!controles.titular.value.trim()) {
+      cambios.titular = this.titularDeEjemplo();
+    }
+
+    this.grupoTarjeta.patchValue(cambios);
+    this.errorPago.set(null);
+    this.pruebasAbiertas.set(false);
+  }
+
+  errorTarjeta(campo: CampoTarjeta): string | null {
+    const control = this.grupoTarjeta.controls[campo];
+    if (control.disabled || !control.touched) return null;
+
+    const errores = control.errors;
+
+    if (errores?.['required']) return FALTANTES[campo];
+
+    switch (campo) {
+      case 'numero':
+        if (errores?.['marcaNoSoportada']) return 'Aceptamos Visa, Mastercard y American Express';
+        if (errores?.['largoInvalido']) {
+          return `El número no tiene el largo de una tarjeta ${errores['largoInvalido'].marca}`;
+        }
+        if (errores?.['numeroInvalido']) return 'El número de la tarjeta no es válido. Revisalo';
+        if (this.grupoTarjeta.hasError('debitoSinAmex')) return DEBITO_SIN_AMEX;
+        return null;
+      case 'vencimiento':
+        if (errores?.['formatoVencimiento']) return 'Usá el formato MM/AA';
+        if (errores?.['tarjetaVencida']) return 'La tarjeta está vencida';
+        if (errores?.['vencimientoLejano']) return 'Revisá el año de vencimiento';
+        return null;
+      case 'cvv': {
+        const cvv = this.grupoTarjeta.getError('cvvInvalido');
+        if (!cvv) return null;
+        const marca = this.marca();
+        return marca
+          ? `El CVV de ${marca} tiene ${cvv.esperado} dígitos`
+          : `El CVV tiene ${cvv.esperado} dígitos`;
+      }
+      case 'titular':
+        return errores?.['titularInvalido']
+          ? 'Escribí nombre y apellido, como figuran en la tarjeta'
+          : null;
+    }
   }
 
   async confirmar(): Promise<void> {
     const funcion = this.funcion();
-    if (!funcion || this.procesando()) return;
+    if (!funcion || this.procesando() || this.aplicandoCupon() || this.destruido) return;
 
     if (this.carrito.butacas().length === 0) {
       this.avisos.error('Elegí al menos una butaca para comprar');
+      this.limpiarPago();
       this.paso.set(1);
       return;
     }
 
+    this.errorPago.set(null);
+    this.ajustarGrupoTarjeta();
     this.formulario.markAllAsTouched();
+
+    if (this.grupoTarjeta.enabled && this.grupoTarjeta.hasError('debitoSinAmex')) {
+      this.avisos.error(DEBITO_SIN_AMEX);
+      return;
+    }
 
     if (this.formulario.invalid) {
       this.avisos.error('Revisá los datos del formulario antes de confirmar');
       return;
     }
 
-    const valores = this.formulario.getRawValue();
     const minima = this.restriccion();
 
     if (minima > 0) {
@@ -441,28 +890,157 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }
     }
 
+    const totalEnPantalla = aCentavos(this.total());
+    const butacasAlConfirmar = this.carrito.butacas().map((butaca) => butaca.id);
+    let pago: DatosPago | null = null;
+
     this.procesando.set(true);
+    this.formulario.disable({ emitEvent: false });
 
     try {
-      const compra = await this.compras.registrar({
+      await this.refrescarDatosDePago();
+      if (this.destruido) return;
+
+      if (!ventaAbierta(this.funcion()?.pelicula)) {
+        this.cerrarVenta();
+        return;
+      }
+
+      if (!this.mismasButacas(butacasAlConfirmar)) {
+        this.errorPago.set(BUTACA_PERDIDA);
+        this.avisos.error(BUTACA_PERDIDA);
+        return;
+      }
+
+      if (aCentavos(this.total()) !== totalEnPantalla) {
+        this.avisos.info(TOTAL_ACTUALIZADO);
+        return;
+      }
+
+      const valores = this.formulario.getRawValue();
+      const foto: FotoCompra = {
         funcionId: funcion.id,
-        butacas: this.carrito.butacas().map((butaca) => butaca.id),
-        items: this.carrito.items(),
+        butacas: butacasAlConfirmar,
+        items: this.carrito.items().map((item) => ({ ...item })),
         email: valores.email.trim(),
         cupon: this.auth.estaLogueado() ? (this.cuponAplicado()?.codigo ?? null) : null,
         usarCredito: this.creditoUsado(),
+        canjes: this.canjesAplicados().map((canje) => canje.codigo),
         fechaNacimiento: valores.fechaNacimiento || null,
+        medio: valores.medio,
+        numero: valores.tarjeta.numero,
+        total: this.total(),
+      };
+
+      if (foto.total > 0) {
+        this.montoEnProceso.set(foto.total);
+        this.fasePago.set('pago');
+
+        const resultado = await this.pasarela.procesar({
+          medio: foto.medio,
+          monto: foto.total,
+          numero: foto.medio === 'mercado_pago' ? undefined : foto.numero,
+        });
+
+        if (this.destruido) {
+          if (resultado.aprobado) {
+            this.avisos.info(PAGO_ANULADO);
+          }
+          return;
+        }
+
+        if (!resultado.aprobado) {
+          const motivo = resultado.motivo ?? 'El pago no fue aprobado. Probá con otro medio de pago.';
+          this.fasePago.set(null);
+          this.errorPago.set(motivo);
+          this.avisos.error(motivo);
+          return;
+        }
+
+        if (!this.mismasButacas(foto.butacas)) {
+          this.fasePago.set(null);
+          this.errorPago.set(BUTACA_VENDIDA);
+          this.avisos.error(BUTACA_VENDIDA);
+          return;
+        }
+
+        pago = { medio: foto.medio, marca: resultado.marca, ultimos4: resultado.ultimos4 };
+        this.fasePago.set('registro');
+      }
+
+      const compra = await this.compras.registrar({
+        funcionId: foto.funcionId,
+        butacas: foto.butacas,
+        items: foto.items,
+        email: foto.email,
+        cupon: foto.cupon,
+        usarCredito: foto.usarCredito,
+        fechaNacimiento: foto.fechaNacimiento,
+        canjes: foto.canjes,
+        pago,
+        totalEsperado: foto.total,
       });
 
+      this.vencimientoPendiente = false;
+      this.grupoTarjeta.reset();
+      this.canjesElegidos.set([]);
+      this.canjes.set([]);
       this.detenerCuenta();
+
+      if (this.destruido) {
+        if (this.carrito.funcion()?.id === foto.funcionId) {
+          this.carrito.limpiar();
+        }
+        if (this.auth.estaLogueado()) {
+          void this.auth.refrescarPerfil().catch(() => undefined);
+        }
+        this.avisos.exito(`Tu compra quedó confirmada con el código ${compra.codigo}`);
+        return;
+      }
+
       this.carrito.limpiar();
-      this.avisos.exito('¡Listo! Tu compra quedó confirmada');
+
+      if (this.auth.estaLogueado()) {
+        await this.auth.refrescarPerfil().catch(() => undefined);
+      }
+
+      this.avisos.exito(
+        foto.total > 0 ? '¡Pago aprobado! Tu compra quedó confirmada' : '¡Listo! Tu compra quedó confirmada',
+      );
+
+      if (this.destruido) return;
       await this.router.navigate(['/compra', compra.codigo]);
     } catch (e) {
-      this.avisos.error(e instanceof Error ? e.message : 'No pudimos registrar la compra');
+      const mensaje = e instanceof Error ? e.message : 'No pudimos registrar la compra';
+      this.errorPago.set(mensaje);
+      this.avisos.error(mensaje);
+
+      if (pago) {
+        this.avisos.info(PAGO_ANULADO);
+      }
+
+      if (this.destruido) return;
+
+      if (mensaje.includes(VENTA_NO_ABIERTA)) {
+        this.cerrarVenta();
+        return;
+      }
+
       await this.cargarEstado();
+
+      if (!this.destruido && mensaje.includes(TOTAL_CAMBIADO)) {
+        await this.recalcularMontos();
+      }
     } finally {
+      this.fasePago.set(null);
       this.procesando.set(false);
+
+      if (!this.destruido) {
+        this.restaurarFormulario();
+        if (this.vencimientoPendiente) {
+          this.vencerReserva();
+        }
+      }
     }
   }
 
@@ -474,11 +1052,167 @@ export class ComprarComponent implements OnInit, OnDestroy {
     return `${productoId ?? 0}-${comboId ?? 0}`;
   }
 
+  private nombreProducto(canje: Canje, nombres: Map<number, string>): string {
+    return (canje.producto_id !== null ? nombres.get(canje.producto_id) : undefined) ?? canje.nombre;
+  }
+
+  private mismasButacas(ids: number[]): boolean {
+    const actuales = new Set(this.carrito.butacas().map((butaca) => butaca.id));
+    return actuales.size === ids.length && ids.every((id) => actuales.has(id));
+  }
+
+  private cerrarVenta(): void {
+    this.ventaCerrada.set(true);
+    this.detenerCuenta();
+    this.limpiarPago();
+    this.avisos.error(VENTA_CERRADA);
+  }
+
+  private restaurarFormulario(): void {
+    this.formulario.enable({ emitEvent: false });
+    this.prepararFormulario();
+    this.ajustarGrupoTarjeta();
+  }
+
+  private async refrescarDatosDePago(): Promise<void> {
+    const tareas: Promise<unknown>[] = [this.sincronizarCatalogo(true), this.recargarFuncion()];
+
+    if (this.auth.estaLogueado()) {
+      tareas.push(this.auth.refrescarPerfil());
+    }
+
+    await Promise.all(tareas);
+  }
+
+  private async prepararPago(): Promise<void> {
+    try {
+      await this.refrescarDatosDePago();
+    } catch {
+      return;
+    }
+
+    if (this.destruido || this.procesando()) return;
+    this.prepararFormulario();
+  }
+
+  private async recalcularMontos(): Promise<void> {
+    const tareas: Promise<unknown>[] = [this.sincronizarCatalogo(true), this.recargarFuncion()];
+
+    if (this.auth.estaLogueado()) {
+      tareas.push(this.auth.refrescarPerfil().catch(() => undefined));
+    }
+
+    await Promise.all(tareas);
+  }
+
+  private async recargarFuncion(): Promise<void> {
+    try {
+      const funcion = await this.funciones.obtener(this.funcionId);
+      if (!funcion || this.destruido) return;
+
+      this.funcion.set(funcion);
+      this.carrito.setFuncion(funcion);
+    } catch {
+      return;
+    }
+  }
+
+  private ajustarGrupoTarjeta(necesaria = this.pideTarjeta()): void {
+    if (this.procesando()) return;
+
+    const grupo = this.grupoTarjeta;
+
+    if (necesaria && grupo.disabled) {
+      grupo.enable({ emitEvent: false });
+    }
+
+    if (!necesaria && grupo.enabled) {
+      grupo.disable({ emitEvent: false });
+    }
+  }
+
+  private formatearTarjeta(): void {
+    const controles = this.grupoTarjeta.controls;
+    const crudo = this.grupoTarjeta.getRawValue();
+
+    const numero = formatearNumeroTarjeta(crudo.numero);
+    const vencimiento = formatearVencimiento(crudo.vencimiento);
+    const cvv = soloDigitos(crudo.cvv).slice(0, LARGO_MAXIMO_CVV);
+
+    if (numero !== crudo.numero) {
+      controles.numero.setValue(numero, { emitEvent: false });
+    }
+
+    if (vencimiento !== crudo.vencimiento) {
+      controles.vencimiento.setValue(vencimiento, { emitEvent: false });
+    }
+
+    if (cvv !== crudo.cvv) {
+      controles.cvv.setValue(cvv, { emitEvent: false });
+    }
+
+    this.tarjetaVista.set({ numero, vencimiento, titular: crudo.titular });
+  }
+
+  private limpiarPago(): void {
+    this.grupoTarjeta.reset();
+    this.errorPago.set(null);
+    this.pruebasAbiertas.set(false);
+  }
+
+  private vencimientoDeEjemplo(): string {
+    const hoy = new Date();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    const anio = String((hoy.getFullYear() + 3) % 100).padStart(2, '0');
+    return `${mes}/${anio}`;
+  }
+
+  private titularDeEjemplo(): string {
+    const nombre = this.auth.nombreCompleto().trim();
+    return nombre.includes(' ') ? nombre : TITULAR_DE_EJEMPLO;
+  }
+
+  private fechaLarga(fecha: string): string {
+    const momento = new Date(`${fecha.slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(momento.getTime())) return fecha;
+    return momento.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+  }
+
+  private async cargarCanjes(): Promise<void> {
+    if (!this.auth.estaLogueado()) {
+      this.canjes.set([]);
+      return;
+    }
+
+    try {
+      const lista = await this.promociones.canjesDisponibles();
+      if (this.destruido) return;
+
+      const usables = lista.filter(
+        (canje) =>
+          !canje.usado &&
+          (canje.tipo === 'entrada' || (canje.tipo === 'producto' && canje.producto_id !== null)),
+      );
+
+      this.canjes.set(usables);
+
+      if (usables.some((canje) => canje.tipo === 'producto')) {
+        void this.cargarCandy();
+      }
+    } catch (e) {
+      if (this.destruido) return;
+      this.canjes.set([]);
+      this.avisos.error(e instanceof Error ? e.message : 'No pudimos cargar tus canjes');
+    }
+  }
+
   private async cargarEstado(): Promise<void> {
     if (!this.funcionId) return;
 
     try {
       const filas = await this.mapaButacas.estado(this.funcionId);
+      if (this.destruido) return;
+
       const mapa = new Map<number, EstadoVisual>();
 
       for (const fila of filas) {
@@ -488,6 +1222,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
       this.estados.set(mapa);
       this.depurarSeleccion(mapa);
     } catch (e) {
+      if (this.destruido) return;
       this.avisos.error(
         e instanceof Error ? e.message : 'No pudimos actualizar el estado de las butacas',
       );
@@ -513,14 +1248,16 @@ export class ComprarComponent implements OnInit, OnDestroy {
   }
 
   private async sincronizarReserva(): Promise<void> {
-    if (!this.funcionId) return;
+    if (!this.funcionId || this.destruido) return;
 
     const ids = this.carrito.butacas().map((butaca) => butaca.id);
 
     try {
       await this.mapaButacas.reservar(this.funcionId, ids);
+      if (this.destruido) return;
       this.reiniciarCuenta(ids.length > 0);
     } catch (e) {
+      if (this.destruido) return;
       this.avisos.error(e instanceof Error ? e.message : 'No pudimos reservar esas butacas');
       await this.cargarEstado();
     }
@@ -528,6 +1265,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
   private reiniciarCuenta(activa: boolean): void {
     this.detenerCuenta();
+    this.vencimientoPendiente = false;
 
     if (!activa) {
       this.segundos.set(0);
@@ -542,12 +1280,24 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
       if (restante <= 0) {
         this.detenerCuenta();
-        this.carrito.limpiarButacas();
-        this.paso.set(1);
-        this.avisos.info('Se venció el tiempo de reserva. Elegí las butacas otra vez.');
-        void this.cargarEstado();
+
+        if (this.procesando()) {
+          this.vencimientoPendiente = true;
+          return;
+        }
+
+        this.vencerReserva();
       }
     }, 1000);
+  }
+
+  private vencerReserva(): void {
+    this.vencimientoPendiente = false;
+    this.carrito.limpiarButacas();
+    this.limpiarPago();
+    this.paso.set(1);
+    this.avisos.info('Se venció el tiempo de reserva. Elegí las butacas otra vez.');
+    void this.cargarEstado();
   }
 
   private detenerCuenta(): void {
@@ -558,9 +1308,22 @@ export class ComprarComponent implements OnInit, OnDestroy {
     this.segundos.set(0);
   }
 
-  private async cargarCandy(): Promise<void> {
-    if (this.combos().length > 0 || this.productos().length > 0) return;
+  private cargarCandy(forzar = false): Promise<boolean> {
+    if (this.cargaCatalogo && !forzar) return this.cargaCatalogo;
 
+    const carga = this.traerCatalogo();
+    this.cargaCatalogo = carga;
+
+    void carga.then((listo) => {
+      if (!listo && this.cargaCatalogo === carga) {
+        this.cargaCatalogo = null;
+      }
+    });
+
+    return carga;
+  }
+
+  private async traerCatalogo(): Promise<boolean> {
     this.cargandoCandy.set(true);
 
     try {
@@ -569,13 +1332,33 @@ export class ComprarComponent implements OnInit, OnDestroy {
         this.candy.productos(true),
       ]);
 
+      if (this.destruido) return false;
+
       this.combos.set(combos);
       this.productos.set(productos);
+      return true;
     } catch (e) {
-      this.avisos.error(e instanceof Error ? e.message : 'No pudimos cargar el candy bar');
+      if (!this.destruido) {
+        this.avisos.error(e instanceof Error ? e.message : 'No pudimos cargar el candy bar');
+      }
+      return false;
     } finally {
       this.cargandoCandy.set(false);
     }
+  }
+
+  private async sincronizarCatalogo(forzar = false): Promise<void> {
+    const listo = await this.cargarCandy(forzar);
+    if (!listo || this.destruido) return;
+
+    const quitados = this.carrito.sincronizarConCatalogo(this.productos(), this.combos());
+    if (quitados.length === 0) return;
+
+    this.avisos.info(
+      quitados.length === 1
+        ? `Sacamos ${quitados[0]} de tu pedido porque ya no está disponible.`
+        : `Sacamos ${quitados.join(', ')} de tu pedido porque ya no están disponibles.`,
+    );
   }
 
   private prepararFormulario(): void {
@@ -588,6 +1371,8 @@ export class ComprarComponent implements OnInit, OnDestroy {
     } else {
       email.enable({ emitEvent: false });
     }
+
+    this.emailDeCuenta.set(!!perfil?.email);
 
     const nacimiento = this.formulario.controls.fechaNacimiento;
 

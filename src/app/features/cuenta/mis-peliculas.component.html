@@ -54,7 +54,7 @@
 
             @if (pelicula.estrellas !== null) {
               <div class="calificacion">
-                <app-estrellas [valor]="pelicula.estrellas ?? 0" [tamanio]="16" />
+                <app-estrellas [valor]="pelicula.estrellas" [tamanio]="16" />
                 <span class="numero">{{ pelicula.estrellas }}/5</span>
               </div>
               <button type="button" class="btn btn-fantasma chico" (click)="abrir(pelicula)">
