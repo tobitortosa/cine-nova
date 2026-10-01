@@ -211,6 +211,11 @@ begin
   delete from reservas where funcion_id = p_funcion_id and butaca_id = any(p_butacas);
   if p_sesion is not null then delete from reservas where sesion = p_sesion; end if;
 
+  begin
+    perform correo_de_compra(v_compra.id);
+  exception when undefined_function then null;
+  end;
+
   return v_compra;
 end $$;
 
