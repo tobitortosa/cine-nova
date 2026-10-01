@@ -1,0 +1,116 @@
+<header class="cabecera">
+  <div class="titulos">
+    <h1>Registro de actividad</h1>
+    <p class="bajada">
+      Acá queda registrado quién creó cada función, quién modificó precios y quién validó cada QR.
+      Es la trazabilidad del sistema: toda acción sensible deja huella con su usuario y su horario.
+    </p>
+  </div>
+
+  <button class="btn btn-secundario" type="button" [disabled]="cargando()" (click)="recargar()">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0-2.1 6" />
+      <path d="M20 5v6h-6" />
+    </svg>
+    <span>Recargar</span>
+  </button>
+</header>
+
+<section class="tarjeta bloque">
+  <div class="barra-superior">
+    <div class="buscador">
+      <svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="M15.8 15.8 20 20" />
+      </svg>
+
+      <input
+        type="search"
+        class="entrada"
+        placeholder="Buscar por acción, entidad o email..."
+        aria-label="Buscar en el registro de actividad"
+        [formControl]="busqueda"
+      />
+
+      @if (filtrando()) {
+        <button class="limpiar" type="button" aria-label="Limpiar la búsqueda" (click)="limpiar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+          </svg>
+        </button>
+      }
+    </div>
+
+    <div class="referencias">
+      <span class="chip chip-ok">Creación</span>
+      <span class="chip chip-peligro">Cancelación</span>
+      <span class="chip chip-accent">Validación QR</span>
+    </div>
+  </div>
+
+  <p class="conteo">
+    @if (filtrando()) {
+      Se muestran <strong>{{ vistas().length }}</strong> de {{ total() }} movimientos.
+    } @else {
+      Últimos <strong>{{ total() }}</strong> movimientos registrados.
+    }
+  </p>
+
+  @if (cargando()) {
+    <app-cargando texto="Cargando el registro de actividad..." />
+  } @else if (vistas().length === 0) {
+    @if (filtrando()) {
+      <app-vacio titulo="Sin resultados" texto="Ningún movimiento coincide con lo que buscaste.">
+        <button class="btn btn-secundario" type="button" (click)="limpiar()">Limpiar búsqueda</button>
+      </app-vacio>
+    } @else {
+      <app-vacio titulo="Sin actividad" texto="Todavía no hay movimientos registrados en el sistema." />
+    }
+  } @else {
+    <div class="tabla-envoltorio">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th scope="col">Fecha y hora</th>
+            <th scope="col">Usuario</th>
+            <th scope="col">Acción</th>
+            <th scope="col">Entidad</th>
+            <th scope="col">ID</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (registro of vistas(); track registro.id) {
+            <tr>
+              <td class="celda-fecha">
+                <span class="dia">{{ registro.fecha }}</span>
+                <span class="hora">{{ registro.hora }} h</span>
+              </td>
+
+              <td class="celda-email">{{ registro.email }}</td>
+
+              <td>
+                <span
+                  class="chip"
+                  [class.chip-ok]="registro.color === 'ok'"
+                  [class.chip-peligro]="registro.color === 'peligro'"
+                  [class.chip-accent]="registro.color === 'ambar'"
+                >{{ registro.etiqueta }}</span>
+              </td>
+
+              <td class="celda-entidad">{{ registro.entidad }}</td>
+
+              <td class="celda-id">
+                @if (registro.entidadId) {
+                  <code>{{ registro.entidadId }}</code>
+                } @else {
+                  <span class="sin-id">—</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

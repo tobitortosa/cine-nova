@@ -1,0 +1,301 @@
+@if (cargando()) {
+  <section class="hero hero-esqueleto">
+    <div class="skeleton hero-fondo-falso"></div>
+    <div class="contenedor hero-interno">
+      <div class="skeleton falso falso-chips"></div>
+      <div class="skeleton falso falso-titulo"></div>
+      <div class="skeleton falso falso-linea"></div>
+      <div class="skeleton falso falso-linea angosto"></div>
+      <div class="skeleton falso falso-botones"></div>
+    </div>
+  </section>
+} @else if (destacadas().length > 0) {
+  <section class="hero" aria-label="Película destacada">
+    @for (destacada of heroeLista(); track destacada.id) {
+      <article class="diapositiva">
+        <div class="hero-fondo">
+          @if (fondo(destacada); as imagen) {
+            <img class="hero-imagen" [src]="imagen" [alt]="'Imagen de ' + destacada.titulo" />
+          } @else {
+            <div class="hero-sin-imagen"></div>
+          }
+          <span class="velo-abajo"></span>
+          <span class="velo-izquierda"></span>
+        </div>
+
+        <div class="contenedor hero-interno">
+          <div class="hero-texto">
+            <p class="hero-encabezado">En cartelera</p>
+            <h1 class="hero-titulo">{{ destacada.titulo }}</h1>
+
+            <div class="hero-metadatos">
+              @for (genero of generosHeroe(); track genero) {
+                <span class="chip chip-accent">{{ genero }}</span>
+              }
+              <span class="chip">{{ destacada.duracion_min | duracion }}</span>
+              <span class="chip" [class.chip-peligro]="destacada.restriccion_edad > 0">
+                {{ destacada.restriccion_edad | restriccion }}
+              </span>
+            </div>
+
+            @if (destacada.total_resenias && destacada.total_resenias > 0) {
+              <div class="hero-puntaje">
+                <app-estrellas [valor]="destacada.promedio ?? 0" [tamanio]="17" />
+                <span class="promedio">{{ destacada.promedio }}</span>
+                <span class="resenias">({{ destacada.total_resenias }} reseñas)</span>
+              </div>
+            }
+
+            @if (sinopsisHeroe()) {
+              <p class="hero-sinopsis">{{ sinopsisHeroe() }}</p>
+            }
+
+            <div class="hero-acciones">
+              <a class="btn btn-primario" [routerLink]="['/peliculas', destacada.id]" fragment="funciones">
+                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+                  <path d="M7 4.5 19 12 7 19.5Z" fill="currentColor" />
+                </svg>
+                Ver funciones
+              </a>
+              <a class="btn btn-secundario" [routerLink]="['/peliculas', destacada.id]">Más info</a>
+            </div>
+          </div>
+        </div>
+      </article>
+    }
+
+    @if (destacadas().length > 1) {
+      <div class="indicadores" role="tablist" aria-label="Películas destacadas">
+        @for (opcion of destacadas(); track opcion.id; let i = $index) {
+          <button
+            type="button"
+            class="punto"
+            role="tab"
+            [class.activo]="i === indice()"
+            [attr.aria-selected]="i === indice()"
+            [attr.aria-label]="'Ver ' + opcion.titulo"
+            (click)="elegirDestacada(i)">
+            <span class="barra"></span>
+          </button>
+        }
+      </div>
+    }
+  </section>
+}
+
+<section class="bloque anim-subir" style="animation-delay: 60ms">
+  <div class="contenedor">
+    <header class="cabecera">
+      <div>
+        <h2 class="titulo-bloque">Las más vendidas</h2>
+        <p class="bajada">Lo que más eligió el público en los últimos 30 días</p>
+      </div>
+      <a class="enlace-ver" routerLink="/peliculas">Ver cartelera completa</a>
+    </header>
+
+    @if (cargando()) {
+      <div class="podio">
+        @for (hueco of esqueletosCortos; track hueco) {
+          <div class="skeleton podio-falso"></div>
+        }
+      </div>
+    } @else if (vendidas().length > 0) {
+      <div class="podio">
+        @for (fila of vendidas(); track fila.pelicula_id; let i = $index) {
+          <a
+            class="tarjeta-podio anim-subir"
+            [routerLink]="['/peliculas', fila.pelicula_id]"
+            [style.animation-delay.ms]="i * 90">
+            <span class="puesto" aria-hidden="true">{{ i + 1 }}</span>
+            <span class="podio-poster">
+              @if (fila.imagen_url; as imagen) {
+                <img [src]="imagen" [alt]="fila.titulo" loading="lazy" />
+              } @else {
+                <span class="sin-poster">{{ inicial(fila.titulo) }}</span>
+              }
+            </span>
+            <span class="podio-datos">
+              <span class="podio-titulo">{{ fila.titulo }}</span>
+              <span class="podio-ventas">{{ fila.vendidas }} entradas vendidas</span>
+            </span>
+          </a>
+        }
+      </div>
+    } @else {
+      <app-vacio
+        titulo="Todavía no hay ranking"
+        texto="Cuando empiecen las ventas vas a ver acá las películas más elegidas." />
+    }
+  </div>
+</section>
+
+<section class="bloque anim-subir" style="animation-delay: 140ms">
+  <div class="contenedor">
+    <header class="cabecera">
+      <div>
+        <h2 class="titulo-bloque">En cartelera</h2>
+        <p class="bajada">Funciones disponibles para comprar ahora mismo</p>
+      </div>
+      <a class="enlace-ver" routerLink="/peliculas">Ver todas</a>
+    </header>
+
+    @if (cargando()) {
+      <div class="grilla">
+        @for (hueco of esqueletos; track hueco) {
+          <div class="carta-falsa">
+            <div class="skeleton poster-falso"></div>
+            <div class="skeleton falso falso-linea"></div>
+            <div class="skeleton falso falso-linea angosto"></div>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="grilla">
+        @for (pelicula of cartelera(); track pelicula.id; let i = $index) {
+          <a
+            class="carta anim-subir"
+            [routerLink]="['/peliculas', pelicula.id]"
+            [style.animation-delay.ms]="i * 45">
+            <span class="poster">
+              @if (portada(pelicula); as imagen) {
+                <img [src]="imagen" [alt]="pelicula.titulo" loading="lazy" />
+              } @else {
+                <span class="sin-poster">{{ inicial(pelicula.titulo) }}</span>
+              }
+              <span class="capa">
+                <span class="capa-accion">Ver funciones</span>
+              </span>
+              <span class="chip etiqueta-edad" [class.chip-peligro]="pelicula.restriccion_edad > 0">
+                {{ pelicula.restriccion_edad | restriccion }}
+              </span>
+            </span>
+
+            <span class="carta-datos">
+              <span class="carta-titulo">{{ pelicula.titulo }}</span>
+              <span class="carta-pie">
+                <span class="duracion">{{ pelicula.duracion_min | duracion }}</span>
+                <span class="puntaje">
+                  <app-estrellas [valor]="pelicula.promedio ?? 0" [tamanio]="13" />
+                  <span class="promedio">{{ pelicula.promedio ?? 0 }}</span>
+                </span>
+              </span>
+            </span>
+          </a>
+        } @empty {
+          <app-vacio
+            titulo="No hay películas en cartelera"
+            texto="Estamos preparando la próxima tanda de estrenos. Volvé en un rato." />
+        }
+      </div>
+    }
+  </div>
+</section>
+
+<section class="bloque anim-subir" style="animation-delay: 220ms">
+  <div class="contenedor">
+    <header class="cabecera">
+      <div>
+        <h2 class="titulo-bloque">Próximamente</h2>
+        <p class="bajada">Los estrenos que se vienen en CineNova</p>
+      </div>
+      <div class="controles">
+        <a class="enlace-ver" routerLink="/proximamente">Ver todos</a>
+        <button type="button" class="flecha" aria-label="Anterior" (click)="desplazar(pista, -1)">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M14.5 5 8 12l6.5 7" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button type="button" class="flecha" aria-label="Siguiente" (click)="desplazar(pista, 1)">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M9.5 5 16 12l-6.5 7" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="pista" #pista>
+      @if (cargando()) {
+        @for (hueco of esqueletosCortos; track hueco) {
+          <div class="skeleton estreno-falso"></div>
+        }
+      } @else {
+        @for (estreno of estrenos(); track estreno.pelicula.id; let i = $index) {
+          <a
+            class="estreno anim-subir"
+            [routerLink]="['/peliculas', estreno.pelicula.id]"
+            [style.animation-delay.ms]="i * 60">
+            <span class="estreno-poster">
+              @if (portada(estreno.pelicula); as imagen) {
+                <img [src]="imagen" [alt]="estreno.pelicula.titulo" loading="lazy" />
+              } @else {
+                <span class="sin-poster">{{ inicial(estreno.pelicula.titulo) }}</span>
+              }
+              @if (estreno.preventa) {
+                <span class="aviso-preventa">Preventa abierta</span>
+              }
+            </span>
+
+            <span class="estreno-datos">
+              <span class="estreno-titulo">{{ estreno.pelicula.titulo }}</span>
+              <span class="estreno-fecha">{{ estreno.fecha }}</span>
+              <span class="estreno-cuenta" [class.urgente]="estreno.preventa">{{ estreno.cuenta }}</span>
+              @if (estreno.preventa && estreno.pelicula.precio_preventa) {
+                <span class="estreno-precio">Preventa desde {{ estreno.pelicula.precio_preventa | precio }}</span>
+              }
+            </span>
+          </a>
+        } @empty {
+          <div class="pista-vacia">
+            <app-vacio
+              titulo="Sin estrenos anunciados"
+              texto="Apenas confirmemos las próximas fechas las vas a ver acá." />
+          </div>
+        }
+      }
+    </div>
+  </div>
+</section>
+
+<section class="banda anim-subir" style="animation-delay: 300ms">
+  <div class="contenedor banda-interna">
+    <div class="banda-texto">
+      <p class="banda-encabezado">Candy bar</p>
+      <h2 class="titulo-bloque">Sumale pochoclo a tu función</h2>
+      <p class="bajada">
+        Pedí tus combos online y retiralos sin hacer la cola. Se suman a la misma compra de tus entradas.
+      </p>
+      <a class="btn btn-primario" routerLink="/candy">Ir al candy bar</a>
+    </div>
+
+    <div class="banda-combos">
+      @if (cargando()) {
+        @for (hueco of esqueletosCortos; track hueco) {
+          <div class="skeleton combo-falso"></div>
+        }
+      } @else {
+        @for (combo of combosDestacados(); track combo.id; let i = $index) {
+          <a class="combo anim-subir" routerLink="/candy" [style.animation-delay.ms]="i * 90">
+            <span class="combo-imagen">
+              @if (combo.imagen_url; as imagen) {
+                <img [src]="imagen" [alt]="combo.nombre" loading="lazy" />
+              } @else {
+                <span class="sin-poster">{{ inicial(combo.nombre) }}</span>
+              }
+            </span>
+            <span class="combo-datos">
+              <span class="combo-nombre">{{ combo.nombre }}</span>
+              @if (combo.descripcion) {
+                <span class="combo-detalle">{{ combo.descripcion }}</span>
+              }
+              <span class="combo-precio">{{ combo.precio | precio }}</span>
+            </span>
+          </a>
+        } @empty {
+          <p class="banda-aviso">Estamos armando los combos de esta temporada.</p>
+        }
+      }
+    </div>
+  </div>
+</section>

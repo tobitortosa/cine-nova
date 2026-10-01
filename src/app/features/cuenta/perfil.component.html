@@ -1,0 +1,149 @@
+<section class="contenedor cuenta">
+  <header class="encabezado anim-subir">
+    <h1>Mi cuenta</h1>
+    <p>Tus datos, tu crédito y tus beneficios de CineNova en un solo lugar.</p>
+  </header>
+
+  <nav class="pestanias" aria-label="Secciones de mi cuenta">
+    <a routerLink="/cuenta" routerLinkActive="activa" [routerLinkActiveOptions]="exacto">Mi perfil</a>
+    <a routerLink="/cuenta/compras" routerLinkActive="activa">Mis compras</a>
+    <a routerLink="/cuenta/peliculas" routerLinkActive="activa">Mis películas</a>
+    <a routerLink="/cuenta/puntos" routerLinkActive="activa">Mis puntos</a>
+  </nav>
+
+  @if (perfil()) {
+    <div class="resumen">
+      <article class="tarjeta dato anim-subir">
+        <span class="etiqueta">Puntos acumulados</span>
+        <strong class="valor acento">{{ numero(puntos()) }}</strong>
+        <span class="pie">Canjealos por entradas y combos</span>
+      </article>
+
+      <article class="tarjeta dato anim-subir">
+        <span class="etiqueta">Crédito disponible</span>
+        <strong class="valor">{{ credito() | precio }}</strong>
+        <span class="pie">Se descuenta en tu próxima compra</span>
+      </article>
+
+      <article class="tarjeta dato anim-subir">
+        <span class="etiqueta">Miembro desde</span>
+        <strong class="valor chico">{{ miembroDesde() }}</strong>
+        <span class="pie">¡Gracias por acompañarnos!</span>
+      </article>
+    </div>
+
+    @if (mostrarCupon()) {
+      <aside class="cupon anim-escalar">
+        <span class="sello" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9.5V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2.5a2.5 2.5 0 0 0 0 5V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2.5a2.5 2.5 0 0 0 0-5Z" />
+            <path d="M9.5 14.5l5-5M9.6 9.6h.01M14.4 14.4h.01" />
+          </svg>
+        </span>
+
+        <div class="texto">
+          <h2>Tenés tu cupón de bienvenida sin usar</h2>
+          <p>Aplicá el código en el paso de pago y llevate un <strong>20 % de descuento</strong> en tu primera compra.</p>
+        </div>
+
+        <div class="codigo">
+          <span class="rotulo">Código</span>
+          <strong>BIENVENIDA</strong>
+          <span class="porcentaje">20 %</span>
+        </div>
+      </aside>
+    }
+
+    <form class="tarjeta formulario anim-subir" [formGroup]="formulario" (ngSubmit)="guardar()">
+      <header class="titulo-form">
+        <h2>Datos personales</h2>
+        <p>Mantené tu información al día para agilizar tus compras.</p>
+      </header>
+
+      <div class="grilla">
+        <div class="campo ancho">
+          <label for="email">Email</label>
+          <input id="email" type="email" formControlName="email" autocomplete="email" />
+          <span class="ayuda">El email de la cuenta no se puede modificar.</span>
+        </div>
+
+        <div class="campo">
+          <label for="nombre">Nombre</label>
+          <input id="nombre" type="text" formControlName="nombre" autocomplete="given-name" placeholder="Tu nombre" />
+          @if (formulario.controls.nombre.touched && formulario.controls.nombre.invalid) {
+            <span class="error-campo">Escribí tu nombre (al menos 2 letras).</span>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="apellido">Apellido</label>
+          <input id="apellido" type="text" formControlName="apellido" autocomplete="family-name" placeholder="Tu apellido" />
+          @if (formulario.controls.apellido.touched && formulario.controls.apellido.invalid) {
+            <span class="error-campo">Escribí tu apellido (al menos 2 letras).</span>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="fecha_nacimiento">Fecha de nacimiento</label>
+          <input id="fecha_nacimiento" type="date" formControlName="fecha_nacimiento" />
+          @if (formulario.controls.fecha_nacimiento.touched && formulario.controls.fecha_nacimiento.invalid) {
+            <span class="error-campo">Indicá tu fecha de nacimiento.</span>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="tipo_sangre">Tipo de sangre</label>
+          <select id="tipo_sangre" formControlName="tipo_sangre">
+            <option value="">Elegí una opción</option>
+            @for (tipo of tiposSangre; track tipo) {
+              <option [value]="tipo">{{ tipo }}</option>
+            }
+          </select>
+          @if (formulario.controls.tipo_sangre.touched && formulario.controls.tipo_sangre.invalid) {
+            <span class="error-campo">Elegí tu tipo de sangre.</span>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="color_ojos">Color de ojos</label>
+          <select id="color_ojos" formControlName="color_ojos">
+            <option value="">Elegí una opción</option>
+            @for (color of coloresOjos; track color) {
+              <option [value]="color">{{ color }}</option>
+            }
+          </select>
+          @if (formulario.controls.color_ojos.touched && formulario.controls.color_ojos.invalid) {
+            <span class="error-campo">Elegí el color de tus ojos.</span>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="dias_vacaciones">Días de vacaciones</label>
+          <input id="dias_vacaciones" type="number" min="0" max="365" formControlName="dias_vacaciones" />
+          @if (formulario.controls.dias_vacaciones.touched && formulario.controls.dias_vacaciones.invalid) {
+            <span class="error-campo">Poné un número entre 0 y 365.</span>
+          }
+        </div>
+      </div>
+
+      <footer class="acciones">
+        <span class="estado">
+          @if (formulario.dirty) {
+            Tenés cambios sin guardar
+          } @else {
+            Todo guardado
+          }
+        </span>
+        <button type="submit" class="btn btn-primario" [disabled]="guardando()">
+          @if (guardando()) {
+            Guardando...
+          } @else {
+            Guardar cambios
+          }
+        </button>
+      </footer>
+    </form>
+  } @else {
+    <app-cargando texto="Cargando tu perfil..." />
+  }
+</section>

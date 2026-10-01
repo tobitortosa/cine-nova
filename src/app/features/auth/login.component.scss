@@ -1,0 +1,99 @@
+:host { display: block; }
+
+.cabecera {
+  margin-bottom: 26px;
+}
+
+.cabecera h1 {
+  font-size: 1.75rem;
+  margin-bottom: 7px;
+}
+
+.cabecera p {
+  margin: 0;
+  font-size: .91rem;
+  color: var(--c-text-soft);
+}
+
+.formulario .campo {
+  margin-bottom: 18px;
+}
+
+.caja-contrasenia {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.caja-contrasenia input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 48px;
+}
+
+.ojo {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-text-faint);
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+
+.ojo:hover { color: var(--c-accent); background: rgb(255 255 255 / .06); }
+.ojo:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
+
+.enviar {
+  width: 100%;
+  margin-top: 8px;
+  padding: 13px 20px;
+  font-size: .96rem;
+}
+
+.girador {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgb(20 22 29 / .25);
+  border-top-color: #14161d;
+  animation: girar .7s linear infinite;
+}
+
+@keyframes girar { to { transform: rotate(360deg); } }
+
+.pie {
+  margin: 24px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--c-border);
+  text-align: center;
+  font-size: .88rem;
+  color: var(--c-text-soft);
+}
+
+.pie a {
+  display: inline-block;
+  color: var(--c-accent);
+  font-weight: 600;
+  border-bottom: 1px solid transparent;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+
+.pie a:hover {
+  color: var(--c-accent-soft);
+  border-bottom-color: var(--c-accent-soft);
+}
+
+@media (max-width: 480px) {
+  .cabecera { margin-bottom: 22px; }
+  .cabecera h1 { font-size: 1.55rem; }
+}

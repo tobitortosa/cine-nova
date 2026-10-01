@@ -1,0 +1,277 @@
+@if (cargando()) {
+  <div class="cargador">
+    <app-cargando texto="Cargando la película..." />
+  </div>
+} @else {
+  @if (pelicula(); as peli) {
+    <article class="detalle">
+      <header class="banner">
+        @if (peli.banner_url) {
+          <div class="fondo" [style.backgroundImage]="'url(' + peli.banner_url + ')'"></div>
+        } @else {
+          <div class="fondo sin-fondo"></div>
+        }
+        <div class="degradado"></div>
+
+        <div class="contenedor cabecera">
+          <nav class="miga">
+            <a routerLink="/peliculas">Cartelera</a>
+            <span aria-hidden="true">/</span>
+            <span class="actual">{{ peli.titulo }}</span>
+          </nav>
+
+          <div class="presentacion">
+            <div class="afiche anim-escalar">
+              @if (peli.imagen_url) {
+                <img [src]="peli.imagen_url" [alt]="'Afiche de ' + peli.titulo" />
+              } @else {
+                <span class="sin-afiche" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+                    <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                    <path d="M7 5v14M17 5v14M2.5 12h19" />
+                  </svg>
+                </span>
+              }
+            </div>
+
+            <div class="ficha anim-subir">
+              @if (!peli.en_cartelera) {
+                <span class="chip chip-accent">Próximo estreno</span>
+              }
+
+              <h1>{{ peli.titulo }}</h1>
+
+              <div class="generos">
+                @for (genero of peli.generos ?? []; track genero.id) {
+                  <span class="chip">{{ genero.nombre }}</span>
+                } @empty {
+                  <span class="chip">Sin género asignado</span>
+                }
+              </div>
+
+              <div class="meta">
+                <span class="dato">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5.2l3.2 1.9" />
+                  </svg>
+                  {{ peli.duracion_min | duracion }}
+                </span>
+
+                <span class="dato edad" [class.restringida]="peli.restriccion_edad > 0">
+                  {{ peli.restriccion_edad | restriccion }}
+                </span>
+
+                <span class="dato">
+                  <app-estrellas [valor]="promedio()" [tamanio]="16" />
+                  <strong>{{ promedio() }}</strong>
+                  <span class="suave">
+                    @if (totalResenias() === 1) {
+                      (1 reseña)
+                    } @else {
+                      ({{ totalResenias() }} reseñas)
+                    }
+                  </span>
+                </span>
+              </div>
+
+              @if (peli.restriccion_edad > 0) {
+                <p class="leyenda">
+                  Menores de {{ peli.restriccion_edad }} años deben ingresar con un adulto.
+                </p>
+              }
+
+              <p class="sinopsis">{{ peli.sinopsis }}</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="contenedor bloques">
+        <section class="bloque" id="funciones">
+          <h2>Funciones disponibles</h2>
+
+          @if (!peli.en_cartelera) {
+            <div class="aviso">
+              <span class="icono" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 8h.01M12 11.5v5" />
+                </svg>
+              </span>
+              <div>
+                <strong>Todavía no está disponible</strong>
+                <p>
+                  Esta película aún no está en cartelera. Activá la alerta en Próximamente y te
+                  avisamos apenas abramos las funciones.
+                </p>
+                <a class="btn btn-secundario" routerLink="/proximamente">Ver próximos estrenos</a>
+              </div>
+            </div>
+          } @else if (grupos().length === 0) {
+            <app-vacio
+              titulo="No hay funciones programadas"
+              texto="Estamos armando la grilla de la semana. Volvé a mirar en un rato." />
+          } @else {
+            <div class="dias">
+              @for (grupo of grupos(); track grupo.clave) {
+                <div class="dia">
+                  <div class="rotulo">
+                    <h3>{{ grupo.etiqueta }}</h3>
+                    <span class="fecha">{{ grupo.fecha }}</span>
+                  </div>
+
+                  <div class="horarios">
+                    @for (funcion of grupo.funciones; track funcion.id) {
+                      <a class="funcion" [routerLink]="['/comprar', funcion.id]">
+                        <span class="hora">{{ hora(funcion) }}</span>
+                        <span class="etiquetas">
+                          <span class="chip chip-accent">{{ funcion.formato }}</span>
+                          <span class="chip">{{ funcion.idioma }}</span>
+                        </span>
+                        <span class="sala">{{ funcion.sala?.nombre ?? 'Sala a confirmar' }}</span>
+                      </a>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <section class="bloque" id="resenias">
+          <h2>Reseñas</h2>
+
+          <div class="resumen-puntaje">
+            <div class="numerote">
+              <strong>{{ promedio() }}</strong>
+              <span>/ 5</span>
+            </div>
+            <div class="detalle-puntaje">
+              <app-estrellas [valor]="promedio()" [tamanio]="22" />
+              <span class="cuenta">
+                @if (totalResenias() === 1) {
+                  1 reseña de nuestra comunidad
+                } @else {
+                  {{ totalResenias() }} reseñas de nuestra comunidad
+                }
+              </span>
+            </div>
+          </div>
+
+          @if (auth.estaLogueado()) {
+            <form class="formulario" [formGroup]="formulario" (ngSubmit)="guardarResenia()">
+              <h3>
+                @if (miResenia()) {
+                  Editá tu reseña
+                } @else {
+                  Dejá tu reseña
+                }
+              </h3>
+
+              <div class="campo">
+                <label for="puntaje">Tu puntaje</label>
+                <div class="elegir-estrellas" id="puntaje">
+                  <app-estrellas
+                    [valor]="puntaje()"
+                    [editable]="true"
+                    [tamanio]="30"
+                    (valorChange)="elegirPuntaje($event)" />
+                  @if (puntaje() > 0) {
+                    <span class="valor">{{ puntaje() }} de 5</span>
+                  } @else {
+                    <span class="valor suave">Tocá las estrellas</span>
+                  }
+                </div>
+                @if (formulario.controls.estrellas.touched && formulario.controls.estrellas.invalid) {
+                  <span class="error-campo">Elegí un puntaje de 1 a 5</span>
+                }
+              </div>
+
+              <div class="campo">
+                <label for="comentario">Tu comentario</label>
+                <textarea
+                  id="comentario"
+                  formControlName="comentario"
+                  rows="4"
+                  [attr.maxlength]="maximo"
+                  placeholder="¿Qué te pareció la película?"
+                  (input)="alEscribirComentario($event)"></textarea>
+                <span class="contador" [class.al-limite]="largo() >= maximo">
+                  {{ largo() }}/{{ maximo }}
+                </span>
+              </div>
+
+              <div class="acciones">
+                <button type="submit" class="btn btn-primario" [disabled]="guardando()">
+                  @if (guardando()) {
+                    Guardando...
+                  } @else if (miResenia()) {
+                    Actualizar reseña
+                  } @else {
+                    Publicar reseña
+                  }
+                </button>
+
+                @if (miResenia()) {
+                  <button
+                    type="button"
+                    class="btn btn-fantasma"
+                    [disabled]="guardando()"
+                    (click)="eliminarResenia()">
+                    Borrar mi reseña
+                  </button>
+                }
+              </div>
+            </form>
+          } @else {
+            <div class="invitacion">
+              <div>
+                <strong>¿Ya la viste?</strong>
+                <p>Ingresá a tu cuenta para puntuarla y contarle al resto qué te pareció.</p>
+              </div>
+              <a class="btn btn-primario" routerLink="/auth/login">Ingresar</a>
+            </div>
+          }
+
+          @if (resenias().length === 0) {
+            <app-vacio
+              titulo="Todavía no hay reseñas"
+              texto="Sé la primera persona en opinar sobre esta película." />
+          } @else {
+            <ul class="lista-resenias">
+              @for (resenia of resenias(); track resenia.id) {
+                <li class="resenia anim-aparecer">
+                  <div class="autor">
+                    <span class="inicial" aria-hidden="true">{{ resenia.autor?.charAt(0) ?? 'U' }}</span>
+                    <div class="quien">
+                      <strong>{{ resenia.autor ?? 'Usuario' }}</strong>
+                      <span class="cuando">{{ resenia.creado_en | desde }}</span>
+                    </div>
+                    @if (resenia.usuario_id === miUsuario()) {
+                      <span class="chip chip-accent">Tu reseña</span>
+                    }
+                  </div>
+
+                  <app-estrellas [valor]="resenia.estrellas" [tamanio]="15" />
+
+                  @if (resenia.comentario) {
+                    <p class="comentario">{{ resenia.comentario }}</p>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      </div>
+    </article>
+  } @else {
+    <section class="contenedor faltante">
+      <app-vacio
+        titulo="No encontramos esa película"
+        texto="Puede que ya no esté publicada o que el enlace sea incorrecto.">
+        <a class="btn btn-primario" routerLink="/peliculas">Volver a la cartelera</a>
+      </app-vacio>
+    </section>
+  }
+}

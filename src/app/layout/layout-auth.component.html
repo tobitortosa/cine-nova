@@ -1,0 +1,39 @@
+<div class="escena">
+  <div class="resplandor"></div>
+  <div class="resplandor secundario"></div>
+
+  <div class="panel anim-subir">
+    <a class="marca" routerLink="/" aria-label="CineNova, volver al inicio">
+      <svg viewBox="0 0 36 36" width="38" height="38" aria-hidden="true">
+        <defs>
+          <linearGradient id="gradMarcaAuth" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ffd27f" />
+            <stop offset="100%" stop-color="#f5b43c" />
+          </linearGradient>
+        </defs>
+        <rect x="2.5" y="6" width="31" height="24" rx="7" fill="url(#gradMarcaAuth)" opacity=".15" />
+        <rect x="2.5" y="6" width="31" height="24" rx="7" fill="none" stroke="url(#gradMarcaAuth)" stroke-width="2" />
+        <circle cx="8" cy="11" r="1.4" fill="url(#gradMarcaAuth)" />
+        <circle cx="8" cy="25" r="1.4" fill="url(#gradMarcaAuth)" />
+        <circle cx="28" cy="11" r="1.4" fill="url(#gradMarcaAuth)" />
+        <circle cx="28" cy="25" r="1.4" fill="url(#gradMarcaAuth)" />
+        <path d="M15.2 12.9 L24 18 L15.2 23.1 Z" fill="url(#gradMarcaAuth)" />
+      </svg>
+      <span class="marca-texto">Cine<strong>Nova</strong></span>
+    </a>
+
+    <div class="tarjeta-auth">
+      <router-outlet />
+    </div>
+
+    <a class="volver" routerLink="/">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+        <path d="M14.5 5 L8 12 L14.5 19" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      Volver a la cartelera
+    </a>
+  </div>
+</div>
+
+<app-avisos />

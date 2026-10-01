@@ -1,0 +1,124 @@
+:host {
+  display: contents;
+}
+
+.avisos {
+  position: fixed;
+  top: calc(var(--header-h) + 14px);
+  right: 18px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 36px));
+  pointer-events: none;
+}
+
+.aviso {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 11px;
+  padding: 13px 14px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-text-faint);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-md);
+  pointer-events: auto;
+  animation: entrarAviso var(--t-slow) both;
+}
+
+.icono {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--c-text-soft);
+}
+
+.icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+.texto {
+  margin: 0;
+  font-size: .89rem;
+  line-height: 1.45;
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.cerrar {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-text-faint);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.cerrar:hover {
+  background: var(--c-surface-3);
+  color: var(--c-text);
+}
+
+.cerrar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tipo-ok {
+  border-left-color: var(--c-success);
+}
+
+.tipo-ok .icono {
+  color: var(--c-success);
+}
+
+.tipo-error {
+  border-left-color: var(--c-danger);
+}
+
+.tipo-error .icono {
+  color: var(--c-danger);
+}
+
+.tipo-info {
+  border-left-color: var(--c-info);
+}
+
+.tipo-info .icono {
+  color: var(--c-info);
+}
+
+@keyframes entrarAviso {
+  from { opacity: 0; transform: translateX(36px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes subirAviso {
+  from { opacity: 0; transform: translateY(26px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 640px) {
+  .avisos {
+    top: auto;
+    bottom: 14px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .aviso {
+    animation-name: subirAviso;
+  }
+}

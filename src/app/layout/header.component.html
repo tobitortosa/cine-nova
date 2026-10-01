@@ -1,0 +1,138 @@
+<header class="barra" [class.desplazado]="desplazado()">
+  <div class="interno">
+    <a class="marca" routerLink="/" (click)="cerrarTodo()" aria-label="CineNova, inicio">
+      <svg class="marca-icono" viewBox="0 0 36 36" width="34" height="34" aria-hidden="true">
+        <defs>
+          <linearGradient id="gradMarcaHeader" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ffd27f" />
+            <stop offset="100%" stop-color="#f5b43c" />
+          </linearGradient>
+        </defs>
+        <rect x="2.5" y="6" width="31" height="24" rx="7" fill="url(#gradMarcaHeader)" opacity=".15" />
+        <rect x="2.5" y="6" width="31" height="24" rx="7" fill="none" stroke="url(#gradMarcaHeader)" stroke-width="2" />
+        <circle cx="8" cy="11" r="1.4" fill="url(#gradMarcaHeader)" />
+        <circle cx="8" cy="25" r="1.4" fill="url(#gradMarcaHeader)" />
+        <circle cx="28" cy="11" r="1.4" fill="url(#gradMarcaHeader)" />
+        <circle cx="28" cy="25" r="1.4" fill="url(#gradMarcaHeader)" />
+        <path d="M15.2 12.9 L24 18 L15.2 23.1 Z" fill="url(#gradMarcaHeader)" />
+      </svg>
+      <span class="marca-texto">Cine<strong>Nova</strong></span>
+    </a>
+
+    <nav class="nav-escritorio" aria-label="Navegación principal">
+      @for (enlace of enlaces; track enlace.ruta) {
+        <a class="enlace" [routerLink]="enlace.ruta" routerLinkActive="activo" (click)="cerrarTodo()">
+          {{ enlace.texto }}
+        </a>
+      }
+    </nav>
+
+    <form class="buscador" [formGroup]="formulario" (ngSubmit)="buscar()">
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+        <path d="M16 16 L21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+      <input type="search" formControlName="busqueda" placeholder="Buscar películas" aria-label="Buscar películas" />
+    </form>
+
+    <div class="acciones">
+      <a class="carrito" routerLink="/candy" (click)="cerrarTodo()" aria-label="Carrito de compras">
+        <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+          <path d="M3 4h2.2l2.4 10.6a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L21 8H6.2"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="10" cy="20" r="1.5" fill="currentColor" />
+          <circle cx="17.5" cy="20" r="1.5" fill="currentColor" />
+        </svg>
+        @if (carrito.cantidadProductos() > 0) {
+          <span class="burbuja">{{ carrito.cantidadProductos() }}</span>
+        }
+      </a>
+
+      @if (auth.estaLogueado()) {
+        <div class="usuario">
+          <button type="button" class="avatar" (click)="alternarMenu()"
+                  [attr.aria-expanded]="menuAbierto()" aria-haspopup="menu"
+                  [attr.aria-label]="'Menú de ' + auth.nombreCompleto()">
+            {{ inicial() }}
+          </button>
+
+          @if (menuAbierto()) {
+            <div class="menu anim-escalar" role="menu">
+              <div class="menu-cabecera">
+                <span class="menu-nombre">{{ auth.nombreCompleto() }}</span>
+                <span class="menu-email">{{ email() }}</span>
+              </div>
+
+              <a class="menu-puntos" routerLink="/cuenta/puntos" (click)="cerrarTodo()">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path d="M12 3.5 14.4 9l6 .5-4.6 3.9 1.4 5.8L12 16.2 6.8 19.2l1.4-5.8L3.6 9.5l6-.5Z"
+                        fill="currentColor" />
+                </svg>
+                <span>{{ puntos() }} puntos acumulados</span>
+              </a>
+
+              <div class="menu-separador"></div>
+
+              <a class="menu-item" routerLink="/cuenta" (click)="cerrarTodo()" role="menuitem">Mi cuenta</a>
+              <a class="menu-item" routerLink="/cuenta/compras" (click)="cerrarTodo()" role="menuitem">Mis compras</a>
+              <a class="menu-item" routerLink="/cuenta/peliculas" (click)="cerrarTodo()" role="menuitem">Mis películas</a>
+              <a class="menu-item" routerLink="/cuenta/puntos" (click)="cerrarTodo()" role="menuitem">Mis puntos</a>
+
+              @if (auth.esAdmin()) {
+                <div class="menu-separador"></div>
+                <a class="menu-item destacado" routerLink="/admin" (click)="cerrarTodo()" role="menuitem">
+                  Panel de administración
+                </a>
+              } @else if (auth.esEmpleado()) {
+                <div class="menu-separador"></div>
+                <a class="menu-item destacado" routerLink="/empleado" (click)="cerrarTodo()" role="menuitem">
+                  Validar entradas
+                </a>
+              }
+
+              <div class="menu-separador"></div>
+              <button type="button" class="menu-item salir" (click)="salir()" role="menuitem">Cerrar sesión</button>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="sesion">
+          <a class="btn btn-fantasma" routerLink="/auth/login" (click)="cerrarTodo()">Ingresar</a>
+          <a class="btn btn-primario" routerLink="/auth/registro" (click)="cerrarTodo()">Crear cuenta</a>
+        </div>
+      }
+
+      <button type="button" class="hamburguesa" (click)="alternarMenuMovil()"
+              [attr.aria-expanded]="menuMovilAbierto()" aria-label="Abrir navegación">
+        <span class="raya" [class.cruz-a]="menuMovilAbierto()"></span>
+        <span class="raya" [class.cruz-b]="menuMovilAbierto()"></span>
+        <span class="raya" [class.cruz-c]="menuMovilAbierto()"></span>
+      </button>
+    </div>
+  </div>
+
+  @if (menuMovilAbierto()) {
+    <nav class="nav-movil anim-aparecer" aria-label="Navegación móvil">
+      <form class="buscador buscador-movil" [formGroup]="formulario" (ngSubmit)="buscar()">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+          <path d="M16 16 L21 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <input type="search" formControlName="busqueda" placeholder="Buscar películas" aria-label="Buscar películas" />
+      </form>
+
+      @for (enlace of enlaces; track enlace.ruta) {
+        <a class="enlace-movil" [routerLink]="enlace.ruta" routerLinkActive="activo" (click)="cerrarTodo()">
+          {{ enlace.texto }}
+        </a>
+      }
+
+      @if (!auth.estaLogueado()) {
+        <div class="sesion-movil">
+          <a class="btn btn-secundario" routerLink="/auth/login" (click)="cerrarTodo()">Ingresar</a>
+          <a class="btn btn-primario" routerLink="/auth/registro" (click)="cerrarTodo()">Crear cuenta</a>
+        </div>
+      }
+    </nav>
+  }
+</header>

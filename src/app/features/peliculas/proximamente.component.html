@@ -1,0 +1,118 @@
+<section class="contenedor pagina">
+  <header class="encabezado anim-subir">
+    <p class="sobretitulo">Agenda CineNova</p>
+    <h1>Próximamente</h1>
+    <p class="bajada">
+      Lo que se viene a nuestras salas. Activá la campana y te avisamos el día del estreno.
+    </p>
+
+    @if (!cargando() && conPreventa() > 0) {
+      <span class="aviso-preventa chip chip-accent">
+        @if (conPreventa() === 1) {
+          1 título con preventa abierta
+        } @else {
+          {{ conPreventa() }} títulos con preventa abierta
+        }
+      </span>
+    }
+  </header>
+
+  @if (cargando()) {
+    <app-cargando texto="Buscando los próximos estrenos..." />
+  } @else if (estrenos().length === 0) {
+    <app-vacio
+      titulo="No hay estrenos cargados"
+      texto="Por ahora no tenemos fechas confirmadas. Mientras tanto, mirá la cartelera.">
+      <a class="btn btn-primario" routerLink="/peliculas">Ver cartelera</a>
+    </app-vacio>
+  } @else {
+    <div class="lista">
+      @for (pelicula of estrenos(); track pelicula.id) {
+        <article class="estreno anim-subir" [class.destacado]="preventaAbierta(pelicula)">
+          <div class="imagen">
+            @if (pelicula.banner_url || pelicula.imagen_url) {
+              <img
+                [src]="pelicula.banner_url ?? pelicula.imagen_url"
+                [alt]="'Imagen de ' + pelicula.titulo"
+                loading="lazy" />
+            } @else {
+              <span class="sin-imagen" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+                  <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                  <path d="M7 5v14M17 5v14M2.5 12h19" />
+                </svg>
+              </span>
+            }
+            <span class="cuenta-regresiva">{{ cuenta(pelicula) }}</span>
+          </div>
+
+          <div class="cuerpo">
+            <div class="fila-superior">
+              <div class="generos">
+                @for (genero of pelicula.generos ?? []; track genero.id) {
+                  <span class="chip">{{ genero.nombre }}</span>
+                }
+                <span class="chip">{{ pelicula.restriccion_edad | restriccion }}</span>
+                <span class="chip">{{ pelicula.duracion_min | duracion }}</span>
+              </div>
+
+              <button
+                type="button"
+                class="campana"
+                [class.activa]="tieneAlerta(pelicula.id)"
+                [disabled]="procesando() === pelicula.id"
+                [attr.aria-pressed]="tieneAlerta(pelicula.id)"
+                [attr.aria-label]="
+                  tieneAlerta(pelicula.id)
+                    ? 'Desactivar alerta de ' + pelicula.titulo
+                    : 'Activar alerta de ' + pelicula.titulo
+                "
+                (click)="alternarAlerta(pelicula)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M18 8.5a6 6 0 10-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5z" />
+                  <path d="M13.7 20a2 2 0 01-3.4 0" />
+                </svg>
+                @if (tieneAlerta(pelicula.id)) {
+                  Alerta activa
+                } @else {
+                  Avisarme
+                }
+              </button>
+            </div>
+
+            <h2>
+              <a [routerLink]="['/peliculas', pelicula.id]">{{ pelicula.titulo }}</a>
+            </h2>
+
+            <p class="sinopsis">{{ pelicula.sinopsis }}</p>
+
+            <div class="fecha">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="16" rx="2.5" />
+                <path d="M3 10h18M8 3v4M16 3v4" />
+              </svg>
+              <span>{{ fecha(pelicula) }}</span>
+              <span class="separador" aria-hidden="true">·</span>
+              <strong>{{ cuenta(pelicula) }}</strong>
+            </div>
+
+            @if (preventaAbierta(pelicula)) {
+              <div class="preventa">
+                <div class="texto-preventa">
+                  <strong>Preventa abierta</strong>
+                  <p>Asegurá tu butaca antes del estreno con precio especial.</p>
+                </div>
+                <div class="compra-preventa">
+                  <span class="precio">{{ pelicula.precio_preventa | precio }}</span>
+                  <a class="btn btn-primario" [routerLink]="['/peliculas', pelicula.id]">
+                    Comprar en preventa
+                  </a>
+                </div>
+              </div>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
+</section>

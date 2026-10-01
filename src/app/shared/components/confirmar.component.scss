@@ -1,0 +1,48 @@
+.capa {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(5 6 10 / .72);
+  backdrop-filter: blur(5px);
+}
+
+.caja {
+  width: 100%;
+  max-width: 420px;
+  padding: 26px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-lg);
+}
+
+.titulo {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+}
+
+.texto {
+  margin: 0;
+  font-size: .92rem;
+  color: var(--c-text-soft);
+}
+
+.acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+@media (max-width: 480px) {
+  .acciones {
+    flex-direction: column-reverse;
+  }
+
+  .acciones .btn {
+    width: 100%;
+  }
+}

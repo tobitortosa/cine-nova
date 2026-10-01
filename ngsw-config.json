@@ -1,0 +1,55 @@
+{
+  "$schema": "./node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/favicon.ico",
+          "/index.html",
+          "/manifest.webmanifest",
+          "/*.css",
+          "/*.js"
+        ]
+      }
+    },
+    {
+      "name": "assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/iconos/**",
+          "/media/**",
+          "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
+        ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "catalogo",
+      "urls": [
+        "https://dubpaswolnuvfczqrzny.supabase.co/rest/v1/peliculas**",
+        "https://dubpaswolnuvfczqrzny.supabase.co/rest/v1/generos**",
+        "https://dubpaswolnuvfczqrzny.supabase.co/rest/v1/productos**",
+        "https://dubpaswolnuvfczqrzny.supabase.co/rest/v1/combos**"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 120,
+        "maxAge": "1h",
+        "timeout": "3s"
+      }
+    }
+  ],
+  "navigationUrls": [
+    "/**",
+    "!/**/*.*",
+    "!/**/*__*",
+    "!/**/*__*/**"
+  ]
+}

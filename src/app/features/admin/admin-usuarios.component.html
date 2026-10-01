@@ -1,0 +1,123 @@
+<section class="pagina">
+  <header class="encabezado">
+    <div class="titulo-zona">
+      <h1>Usuarios</h1>
+      <p>Consultá los perfiles registrados y asigná los permisos de cada persona del equipo.</p>
+    </div>
+  </header>
+
+  <div class="tarjetas">
+    <article class="tarjeta-dato">
+      <span class="etiqueta">Total de usuarios</span>
+      <strong class="numero">{{ totales().total }}</strong>
+    </article>
+    <article class="tarjeta-dato">
+      <span class="etiqueta">Clientes</span>
+      <strong class="numero">{{ totales().clientes }}</strong>
+    </article>
+    <article class="tarjeta-dato">
+      <span class="etiqueta">Empleados</span>
+      <strong class="numero">{{ totales().empleados }}</strong>
+    </article>
+    <article class="tarjeta-dato destacada">
+      <span class="etiqueta">Administradores</span>
+      <strong class="numero">{{ totales().administradores }}</strong>
+    </article>
+  </div>
+
+  <div class="barra-filtro">
+    <div class="buscador">
+      <svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <path d="M16.5 16.5L21 21" />
+      </svg>
+      <input
+        type="search"
+        placeholder="Buscar por nombre o email"
+        aria-label="Buscar usuarios por nombre o email"
+        autocomplete="off"
+        [value]="busqueda()"
+        (input)="cambiarBusqueda($event)"
+      />
+      @if (busqueda()) {
+        <button type="button" class="limpiar" aria-label="Limpiar la búsqueda" (click)="limpiarBusqueda()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      }
+    </div>
+
+    <div class="filtros-rol">
+      <button type="button" class="filtro" [class.activo]="filtroRol() === 'todos'" (click)="cambiarFiltroRol('todos')">Todos</button>
+      <button type="button" class="filtro" [class.activo]="filtroRol() === 'cliente'" (click)="cambiarFiltroRol('cliente')">Clientes</button>
+      <button type="button" class="filtro" [class.activo]="filtroRol() === 'empleado'" (click)="cambiarFiltroRol('empleado')">Empleados</button>
+      <button type="button" class="filtro" [class.activo]="filtroRol() === 'admin'" (click)="cambiarFiltroRol('admin')">Administradores</button>
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <app-cargando texto="Cargando los usuarios..." />
+  } @else if (filtrados().length === 0) {
+    <app-vacio titulo="No encontramos usuarios" texto="Probá con otro nombre, otro email o cambiá el filtro de rol." />
+  } @else {
+    <div class="tabla-envoltura anim-aparecer">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Email</th>
+            <th>Nacimiento</th>
+            <th class="derecha">Edad</th>
+            <th class="derecha">Puntos</th>
+            <th class="derecha">Crédito</th>
+            <th>Alta</th>
+            <th>Rol</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (usuario of filtrados(); track usuario.id) {
+            <tr>
+              <td>
+                <div class="persona">
+                  <span class="avatar" [class.propio]="esUnoMismo(usuario)">{{ iniciales(usuario) }}</span>
+                  <div class="persona-datos">
+                    <strong>{{ nombreCompleto(usuario) }}</strong>
+                    @if (esUnoMismo(usuario)) {
+                      <span class="chip chip-accent">Sos vos</span>
+                    }
+                  </div>
+                </div>
+              </td>
+              <td class="email">{{ usuario.email }}</td>
+              <td class="suave">{{ fecha(usuario.fecha_nacimiento) }}</td>
+              <td class="derecha suave">{{ edad(usuario.fecha_nacimiento) }}</td>
+              <td class="derecha"><strong class="puntos">{{ usuario.puntos }}</strong></td>
+              <td class="derecha"><strong class="credito">{{ usuario.credito | precio }}</strong></td>
+              <td class="suave">{{ fecha(usuario.creado_en) }}</td>
+              <td>
+                <select
+                  class="select-rol"
+                  [class.rol-admin]="usuario.rol === 'admin'"
+                  [class.rol-empleado]="usuario.rol === 'empleado'"
+                  [attr.aria-label]="'Rol de ' + nombreCompleto(usuario)"
+                  [disabled]="esUnoMismo(usuario) || cambiandoId() === usuario.id"
+                  (change)="cambiarRol(usuario, $event)"
+                >
+                  @for (rol of roles; track rol) {
+                    <option [value]="rol" [selected]="usuario.rol === rol">{{ etiquetaRol(rol) }}</option>
+                  }
+                </select>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <p class="pie-tabla">
+      Mostrando {{ filtrados().length }} de {{ totales().total }}
+      {{ totales().total === 1 ? 'usuario' : 'usuarios' }}. No podés modificar tu propio rol.
+    </p>
+  }
+</section>

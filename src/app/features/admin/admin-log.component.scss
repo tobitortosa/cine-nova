@@ -1,0 +1,237 @@
+:host {
+  display: block;
+}
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+
+  h1 {
+    margin: 0 0 6px;
+  }
+}
+
+.titulos {
+  max-width: 680px;
+}
+
+.bajada {
+  margin: 0;
+  color: var(--c-text-soft);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.bloque {
+  padding: 20px;
+}
+
+.barra-superior {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.buscador {
+  position: relative;
+  flex: 1 1 280px;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+}
+
+.lupa {
+  position: absolute;
+  left: 13px;
+  width: 17px;
+  height: 17px;
+  color: var(--c-text-faint);
+  pointer-events: none;
+}
+
+.entrada {
+  width: 100%;
+  padding: 11px 40px 11px 40px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+
+  &::placeholder {
+    color: var(--c-text-faint);
+  }
+
+  &:focus {
+    outline: none;
+    background: var(--c-surface);
+    border-color: var(--c-accent);
+    box-shadow: 0 0 0 3px rgb(245 180 60 / 0.14);
+  }
+
+  &::-webkit-search-cancel-button {
+    appearance: none;
+  }
+}
+
+.limpiar {
+  position: absolute;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-full);
+  background: var(--c-surface-3);
+  color: var(--c-text-soft);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  &:hover {
+    background: var(--c-danger);
+    color: #fff;
+  }
+}
+
+.referencias {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.chip-ok {
+  background: rgb(63 207 142 / 0.15);
+  color: var(--c-success);
+}
+
+.conteo {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  color: var(--c-text-faint);
+
+  strong {
+    color: var(--c-text-soft);
+  }
+}
+
+.tabla-envoltorio {
+  overflow-x: auto;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.tabla {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+
+  th,
+  td {
+    padding: 11px 14px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  thead th {
+    background: var(--c-surface-2);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-text-faint);
+    border-bottom: 1px solid var(--c-border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--c-border);
+    transition: background var(--t-fast);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--c-surface-2);
+    }
+  }
+}
+
+.celda-fecha {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.dia {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hora {
+  font-size: 0.76rem;
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.celda-email {
+  color: var(--c-text-soft);
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.celda-entidad {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.celda-id {
+  code {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--r-sm);
+    background: var(--c-surface-3);
+    color: var(--c-text-soft);
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.78rem;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+}
+
+.sin-id {
+  color: var(--c-text-faint);
+}
+
+@media (max-width: 720px) {
+  .buscador {
+    max-width: none;
+    flex: 1 1 100%;
+  }
+
+  .referencias {
+    width: 100%;
+  }
+}

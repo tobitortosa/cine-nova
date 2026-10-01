@@ -1,0 +1,72 @@
+:host {
+  display: inline-block;
+  line-height: 0;
+}
+
+.estrellas {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.estrella {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-surface-3);
+  line-height: 0;
+  cursor: default;
+  transition: transform var(--t-fast);
+}
+
+.estrella:disabled {
+  opacity: 1;
+}
+
+.estrella:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+.estrellas.editable .estrella {
+  cursor: pointer;
+}
+
+.estrellas.editable .estrella:hover {
+  transform: scale(1.2);
+}
+
+.estrellas.editable .estrella:active {
+  transform: scale(.94);
+}
+
+.estrella > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.trazo {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.relleno {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 0;
+  color: var(--c-accent);
+  transition: width var(--t-base);
+}
+
+.relleno svg {
+  display: block;
+  fill: currentColor;
+  filter: drop-shadow(0 0 5px rgb(245 180 60 / .35));
+}

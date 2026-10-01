@@ -1,0 +1,569 @@
+:host {
+  display: block;
+}
+
+.pagina {
+  padding: 40px 20px 72px;
+  max-width: 760px;
+}
+
+.marco {
+  filter: drop-shadow(0 22px 54px rgb(0 0 0 / .6));
+  animation: entrar-ticket 580ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@keyframes entrar-ticket {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sellar {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-13deg) scale(2.1);
+  }
+  to {
+    opacity: .92;
+    transform: translate(-50%, -50%) rotate(-13deg) scale(1);
+  }
+}
+
+.ticket {
+  --diente: 13px;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgb(245 180 60 / .12), transparent 240px),
+    var(--c-surface);
+  -webkit-mask-image:
+    radial-gradient(var(--diente) at 50% 0, #0000 98%, #000),
+    radial-gradient(var(--diente) at 50% 100%, #0000 98%, #000);
+  -webkit-mask-size: calc(var(--diente) * 2) 51%, calc(var(--diente) * 2) 51%;
+  -webkit-mask-position: 50% 0, 50% 100%;
+  -webkit-mask-repeat: repeat-x, repeat-x;
+  mask-image:
+    radial-gradient(var(--diente) at 50% 0, #0000 98%, #000),
+    radial-gradient(var(--diente) at 50% 100%, #0000 98%, #000);
+  mask-size: calc(var(--diente) * 2) 51%, calc(var(--diente) * 2) 51%;
+  mask-position: 50% 0, 50% 100%;
+  mask-repeat: repeat-x, repeat-x;
+}
+
+.ticket-contenido {
+  padding: 34px 32px 26px;
+  transition: opacity var(--t-base), filter var(--t-base);
+}
+
+.ticket-contenido.talon {
+  padding: 26px 32px 36px;
+}
+
+.ticket.atenuado .ticket-contenido {
+  opacity: .3;
+  filter: grayscale(.75);
+}
+
+.ticket.atenuado .perforado {
+  opacity: .35;
+}
+
+.encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.marca {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.marca-nombre {
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--c-accent);
+}
+
+.marca-bajada {
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.estados {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.estado-valida {
+  background: rgb(63 207 142 / .15);
+  color: var(--c-success);
+}
+
+.estado-usada {
+  background: rgb(91 157 255 / .15);
+  color: var(--c-info);
+}
+
+.obra {
+  padding: 22px 0 18px;
+
+  h1 {
+    margin: 0 0 12px;
+    font-size: clamp(1.6rem, 5vw, 2.3rem);
+  }
+}
+
+.etiquetas {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.datos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 16px 4px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+
+.dato {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 14px;
+
+  & + .dato {
+    border-left: 1px solid var(--c-border);
+  }
+}
+
+.rotulo {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.valor {
+  font-size: .95rem;
+  line-height: 1.3;
+}
+
+.seccion {
+  padding-top: 24px;
+}
+
+.titulo-seccion {
+  margin: 0 0 12px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+}
+
+.butacas {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.butaca {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+
+.butaca-codigo {
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: .02em;
+}
+
+.butaca-tipo {
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  background: rgb(255 255 255 / .07);
+}
+
+.butaca.vip {
+  border-color: rgb(212 175 55 / .5);
+  background: rgb(212 175 55 / .1);
+
+  .butaca-tipo {
+    background: rgb(212 175 55 / .22);
+    color: var(--c-vip);
+  }
+}
+
+.butaca.accesible {
+  border-color: rgb(79 179 217 / .5);
+  background: rgb(79 179 217 / .1);
+
+  .butaca-tipo {
+    background: rgb(79 179 217 / .22);
+    color: var(--c-accesible);
+  }
+}
+
+.sin-datos {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: .88rem;
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 13px;
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+
+.item-cantidad {
+  min-width: 32px;
+  font-weight: 700;
+  font-size: .86rem;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.item-nombre {
+  flex: 1;
+  min-width: 0;
+  font-size: .92rem;
+}
+
+.item-precio {
+  font-weight: 600;
+  font-size: .9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.desglose {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.linea {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--c-text-soft);
+  font-size: .92rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.linea.descuento {
+  color: var(--c-success);
+}
+
+.linea.total {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-border);
+  color: var(--c-text);
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1.32rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+
+  span:last-child {
+    color: var(--c-accent);
+  }
+}
+
+.puntos {
+  margin: 2px 0 0;
+  font-size: .82rem;
+  color: var(--c-text-faint);
+}
+
+.perforado {
+  position: relative;
+  height: 32px;
+  margin-inline: 34px;
+  background-image: linear-gradient(90deg, var(--c-border) 0 9px, transparent 9px 18px);
+  background-size: 18px 2px;
+  background-position: 50% 50%;
+  background-repeat: repeat-x;
+}
+
+.perforado::before,
+.perforado::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--c-bg);
+  transform: translateY(-50%);
+}
+
+.perforado::before {
+  left: -50px;
+}
+
+.perforado::after {
+  right: -50px;
+}
+
+.qr-caja {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.qr {
+  width: clamp(188px, 52vw, 252px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--c-border), 0 10px 28px rgb(0 0 0 / .4);
+}
+
+.qr-vacio {
+  background: var(--c-surface-2);
+  box-shadow: 0 0 0 1px var(--c-border);
+  animation: pulso 1.4s ease-in-out infinite;
+}
+
+.qr-rotulo {
+  margin-top: 4px;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.qr-codigo {
+  margin: 0;
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+  font-size: clamp(1.15rem, 4.6vw, 1.55rem);
+  font-weight: 700;
+  letter-spacing: .2em;
+  color: var(--c-accent-soft);
+  word-break: break-all;
+}
+
+.qr-fecha {
+  margin: 0;
+  font-size: .78rem;
+  color: var(--c-text-faint);
+}
+
+.restriccion {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+  padding: 15px 17px;
+  border: 1px solid rgb(240 82 79 / .45);
+  border-radius: var(--r-md);
+  background: rgb(240 82 79 / .1);
+
+  p {
+    margin: 0;
+    font-size: .88rem;
+    line-height: 1.5;
+    color: var(--c-text);
+  }
+}
+
+.restriccion-marca {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: var(--r-full);
+  background: rgb(240 82 79 / .2);
+  color: var(--c-danger);
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.aviso {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+
+  p {
+    margin: 0;
+    font-size: .84rem;
+    line-height: 1.55;
+    color: var(--c-text-soft);
+  }
+}
+
+.sello {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  z-index: 3;
+  padding: 10px 30px;
+  border: 5px solid currentColor;
+  border-radius: var(--r-md);
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: clamp(1.7rem, 7vw, 3rem);
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: .92;
+  transform: translate(-50%, -50%) rotate(-13deg);
+  animation: sellar 480ms cubic-bezier(.2, .9, .3, 1.25) 320ms both;
+}
+
+.sello-cancelada {
+  color: var(--c-danger);
+  text-shadow: 0 2px 18px rgb(240 82 79 / .4);
+}
+
+.sello-utilizada {
+  color: var(--c-info);
+  text-shadow: 0 2px 18px rgb(91 157 255 / .4);
+}
+
+.acciones {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+
+.nota-estado {
+  margin: 18px auto 0;
+  max-width: 54ch;
+  text-align: center;
+  font-size: .86rem;
+  color: var(--c-text-faint);
+  line-height: 1.55;
+}
+
+.nota-estado.peligro {
+  color: var(--c-danger);
+}
+
+.codigo-buscado {
+  width: 100%;
+  margin: 0 0 6px;
+  font-size: .86rem;
+  color: var(--c-text-faint);
+
+  strong {
+    font-family: ui-monospace, 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+    letter-spacing: .12em;
+    color: var(--c-text-soft);
+  }
+}
+
+@media (max-width: 620px) {
+  .pagina {
+    padding: 24px 16px 56px;
+  }
+
+  .ticket-contenido {
+    padding: 26px 20px 22px;
+  }
+
+  .ticket-contenido.talon {
+    padding: 22px 20px 30px;
+  }
+
+  .datos {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .dato {
+    padding: 0;
+
+    & + .dato {
+      border-left: 0;
+      border-top: 1px solid var(--c-border);
+      padding-top: 13px;
+    }
+  }
+
+  .perforado {
+    margin-inline: 24px;
+  }
+
+  .perforado::before {
+    left: -40px;
+  }
+
+  .perforado::after {
+    right: -40px;
+  }
+
+  .restriccion {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 11px;
+  }
+
+  .acciones .btn {
+    width: 100%;
+  }
+}

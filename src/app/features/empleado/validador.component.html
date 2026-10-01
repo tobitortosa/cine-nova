@@ -1,0 +1,279 @@
+<div class="pantalla">
+  <header class="barra">
+    <div class="quien">
+      <span class="avatar" aria-hidden="true">{{ inicial() }}</span>
+      <div class="datos-empleado">
+        <p class="rotulo">Punto de validación</p>
+        <p class="nombre">{{ nombre() }}</p>
+      </div>
+    </div>
+
+    <button type="button" class="salir" (click)="salir()" [disabled]="saliendo()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+        <path d="m16 15 4-3-4-3" />
+        <path d="M20 12H10" />
+      </svg>
+      <span>Salir</span>
+    </button>
+  </header>
+
+  <main class="cuerpo">
+    <section class="conmutador" role="group" aria-label="Tipo de validación">
+      <button
+        type="button"
+        class="modo"
+        [class.activo]="modo() === 'entrada'"
+        [attr.aria-pressed]="modo() === 'entrada'"
+        (click)="cambiarModo('entrada')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 9.5V7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2.5a2.5 2.5 0 0 0 0 5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2.5a2.5 2.5 0 0 0 0-5Z" />
+          <path d="M14 6.5v11" stroke-dasharray="2 3" />
+        </svg>
+        <span class="titulo-modo">Entrada a sala</span>
+        <span class="ayuda-modo">Valida la butaca</span>
+      </button>
+
+      <button
+        type="button"
+        class="modo"
+        [class.activo]="modo() === 'candy'"
+        [attr.aria-pressed]="modo() === 'candy'"
+        (click)="cambiarModo('candy')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5.5 7h13l-1.3 12.3a2 2 0 0 1-2 1.7H8.8a2 2 0 0 1-2-1.7Z" />
+          <path d="M4 7h16" />
+          <path d="M9.5 3.5 9 7" />
+          <path d="M14.5 3.5 15 7" />
+        </svg>
+        <span class="titulo-modo">Candy bar</span>
+        <span class="ayuda-modo">Entrega de productos</span>
+      </button>
+    </section>
+
+    <nav class="pestanias" aria-label="Forma de ingresar el código">
+      <button
+        type="button"
+        class="pestania"
+        [class.activa]="pestania() === 'escanear'"
+        (click)="cambiarPestania('escanear')"
+      >
+        Escanear
+      </button>
+      <button
+        type="button"
+        class="pestania"
+        [class.activa]="pestania() === 'manual'"
+        (click)="cambiarPestania('manual')"
+      >
+        Manual
+      </button>
+    </nav>
+
+    @switch (pestania()) {
+      @case ('escanear') {
+        <section class="bloque escaner anim-aparecer">
+          <div class="marco" [class.encendido]="escaneando()">
+            <div id="lector-qr" class="lector"></div>
+
+            @if (!escaneando()) {
+              <div class="reposo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                  <path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4" />
+                </svg>
+                <p>Apuntá al código QR de la entrada</p>
+              </div>
+            } @else {
+              <div class="mira" aria-hidden="true"></div>
+            }
+          </div>
+
+          @if (escaneando()) {
+            <button type="button" class="accion detener" (click)="detenerCamara()">
+              Detener cámara
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="accion iniciar"
+              (click)="iniciarCamara()"
+              [disabled]="abriendoCamara()"
+            >
+              {{ abriendoCamara() ? 'Abriendo cámara...' : 'Iniciar cámara' }}
+            </button>
+          }
+
+          @if (camaraBloqueada()) {
+            <div class="aviso-camara anim-aparecer" role="alert">
+              <p class="titulo-aviso">No tenemos permiso para usar la cámara</p>
+              <p class="texto-aviso">
+                Habilitá la cámara desde los ajustes del navegador o validá el código a mano.
+              </p>
+              <button type="button" class="accion secundaria" (click)="cambiarPestania('manual')">
+                Cargar código a mano
+              </button>
+            </div>
+          }
+        </section>
+      }
+
+      @case ('manual') {
+        <section class="bloque manual anim-aparecer">
+          <form [formGroup]="formulario" (ngSubmit)="validarManual()">
+            <label class="rotulo-campo" for="codigo">Código de la compra</label>
+            <input
+              id="codigo"
+              #campoCodigo
+              type="text"
+              class="codigo"
+              formControlName="codigo"
+              (input)="normalizar($event)"
+              placeholder="CN-000000"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+            />
+
+            @if (formulario.controls.codigo.touched && formulario.controls.codigo.invalid) {
+              <p class="error-campo">Escribí el código completo que figura en la entrada.</p>
+            }
+
+            <button type="submit" class="accion iniciar" [disabled]="validando()">
+              {{ validando() ? 'Validando...' : 'Validar' }}
+            </button>
+          </form>
+
+          <p class="pista">
+            Usá esta opción cuando el lector no funcione o la pantalla del cliente no se lea.
+          </p>
+        </section>
+      }
+    }
+
+    @if (validando()) {
+      <section class="bloque trabajando anim-aparecer" role="status" aria-live="polite">
+        <span class="rueda" aria-hidden="true"></span>
+        <p>Consultando el código...</p>
+      </section>
+    }
+
+    @if (resultado(); as salida) {
+      <section
+        class="resultado anim-escalar"
+        [class.valido]="salida.ok"
+        [class.rechazado]="!salida.ok"
+        role="status"
+        aria-live="assertive"
+      >
+        <div class="sello" aria-hidden="true">
+          @if (salida.ok) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m4 12.6 5.3 5.4L20 6.6" />
+            </svg>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 6 18 18" />
+              <path d="M18 6 6 18" />
+            </svg>
+          }
+        </div>
+
+        <h2 class="veredicto">{{ tituloResultado() }}</h2>
+
+        @if (codigoResultado()) {
+          <p class="codigo-resultado">{{ codigoResultado() }}</p>
+        }
+
+        @if (salida.ok) {
+          <dl class="detalle">
+            @if (salida.pelicula) {
+              <div class="fila">
+                <dt>Película</dt>
+                <dd>{{ salida.pelicula }}</dd>
+              </div>
+            }
+            @if (funcionResultado()) {
+              <div class="fila">
+                <dt>Función</dt>
+                <dd>{{ funcionResultado() }}</dd>
+              </div>
+            }
+            @if (salida.sala) {
+              <div class="fila">
+                <dt>Sala</dt>
+                <dd>{{ salida.sala }}</dd>
+              </div>
+            }
+            @if (butacas().length) {
+              <div class="fila">
+                <dt>Butacas</dt>
+                <dd class="butacas">
+                  @for (butaca of butacas(); track $index) {
+                    <span class="butaca">{{ butaca }}</span>
+                  }
+                </dd>
+              </div>
+            }
+          </dl>
+
+          @if (productos().length) {
+            <div class="productos">
+              <p class="rotulo-productos">Productos</p>
+              <ul>
+                @for (producto of productos(); track $index) {
+                  <li>
+                    <span class="cantidad">{{ producto.cantidad }}x</span>
+                    <span class="nombre-producto">{{ producto.nombre }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        } @else {
+          <p class="motivo">{{ motivoResultado() }}</p>
+        }
+
+        <button type="button" class="accion otro" (click)="validarOtro()">Validar otro</button>
+      </section>
+    }
+
+    <section class="historial">
+      <header class="cabecera-historial">
+        <h3>Validaciones de la sesión</h3>
+        @if (historial().length) {
+          <p class="marcador">
+            <span class="buenas">{{ validadas() }} válidas</span>
+            <span class="malas">{{ rechazadas() }} rechazadas</span>
+          </p>
+        }
+      </header>
+
+      @if (historial().length) {
+        <ul class="lista-historial">
+          @for (registro of historial(); track registro.id) {
+            <li class="renglon" [class.ok]="registro.ok">
+              <span class="hora">{{ registro.hora }}</span>
+              <span class="columna">
+                <span class="codigo-historial">{{ registro.codigo }}</span>
+                <span class="detalle-historial">{{ registro.detalle }}</span>
+              </span>
+              <span class="etiqueta">
+                {{ registro.modo === 'entrada' ? 'Sala' : 'Candy' }}
+              </span>
+              <span class="estado">{{ registro.ok ? 'OK' : 'NO' }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="sin-historial">Todavía no validaste ningún código en esta sesión.</p>
+      }
+    </section>
+  </main>
+</div>
+
+<app-avisos />

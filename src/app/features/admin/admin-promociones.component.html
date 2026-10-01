@@ -1,0 +1,307 @@
+<section class="pagina">
+  <header class="encabezado">
+    <div class="titulo-zona">
+      <h1>Promociones</h1>
+      <p>Gestioná los cupones de descuento y las recompensas que los clientes canjean con sus puntos.</p>
+    </div>
+
+    <button type="button" class="btn btn-primario" (click)="abrirAlta()">
+      <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      {{ textoBotonAlta() }}
+    </button>
+  </header>
+
+  <nav class="pestanias">
+    <button type="button" class="pestania" [class.activa]="pestania() === 'cupones'" (click)="cambiarPestania('cupones')">
+      Cupones
+      <span class="cuenta">{{ cupones().length }}</span>
+    </button>
+    <button type="button" class="pestania" [class.activa]="pestania() === 'recompensas'" (click)="cambiarPestania('recompensas')">
+      Recompensas
+      <span class="cuenta">{{ recompensas().length }}</span>
+    </button>
+  </nav>
+
+  @if (cargando()) {
+    <app-cargando texto="Cargando las promociones..." />
+  } @else {
+    @switch (pestania()) {
+      @case ('cupones') {
+        <div class="bloque anim-aparecer">
+          <p class="nota">
+            El cupón de bienvenida se aplica una sola vez, en la primera compra del usuario. Los cupones por edad
+            se validan contra la fecha de nacimiento declarada en la compra.
+          </p>
+
+          @if (cupones().length === 0) {
+            <app-vacio titulo="Todavía no hay cupones" texto="Creá un cupón para ofrecer descuentos en la compra de entradas y productos." />
+          } @else {
+            <div class="tabla-envoltura">
+              <table class="tabla">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th class="derecha">Descuento</th>
+                    <th>Tipo</th>
+                    <th class="derecha">Edad mínima</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (cupon of cupones(); track cupon.id) {
+                    <tr [class.inactiva]="!cupon.activo">
+                      <td><code class="codigo">{{ cupon.codigo }}</code></td>
+                      <td class="descripcion">{{ cupon.descripcion }}</td>
+                      <td class="derecha"><strong class="porcentaje">{{ cupon.porcentaje }}%</strong></td>
+                      <td>
+                        <span class="chip" [class.chip-accent]="cupon.tipo === 'bienvenida'">
+                          {{ etiquetaTipoCupon(cupon.tipo) }}
+                        </span>
+                      </td>
+                      <td class="derecha">
+                        {{ cupon.edad_minima === null ? '—' : cupon.edad_minima + ' años' }}
+                      </td>
+                      <td>
+                        @if (cupon.activo) {
+                          <span class="estado activo">Activo</span>
+                        } @else {
+                          <span class="estado pausado">Inactivo</span>
+                        }
+                      </td>
+                      <td>
+                        <div class="fila-acciones">
+                          <button type="button" class="btn btn-secundario chico" (click)="editarCupon(cupon)">Editar</button>
+                          <button type="button" class="btn btn-peligro chico" (click)="pedirBaja('cupones', cupon.id, cupon.codigo)">Borrar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      }
+
+      @case ('recompensas') {
+        <div class="bloque anim-aparecer">
+          <p class="nota">
+            Las recompensas se canjean desde "Mis puntos". Cada compra suma puntos que el cliente puede gastar acá.
+          </p>
+
+          @if (recompensas().length === 0) {
+            <app-vacio titulo="Todavía no hay recompensas" texto="Creá una recompensa para que los clientes puedan canjear sus puntos." />
+          } @else {
+            <div class="tabla-envoltura">
+              <table class="tabla">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Producto asociado</th>
+                    <th class="derecha">Costo</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (recompensa of recompensas(); track recompensa.id) {
+                    <tr [class.inactiva]="!recompensa.activo">
+                      <td><strong>{{ recompensa.nombre }}</strong></td>
+                      <td>
+                        <span class="chip" [class.chip-accent]="recompensa.tipo === 'entrada'">
+                          {{ etiquetaTipoRecompensa(recompensa.tipo) }}
+                        </span>
+                      </td>
+                      <td class="descripcion">
+                        {{ recompensa.tipo === 'producto' ? nombreProducto(recompensa.producto_id) : '—' }}
+                      </td>
+                      <td class="derecha"><strong class="puntos">{{ recompensa.costo_puntos }} pts</strong></td>
+                      <td>
+                        @if (recompensa.activo) {
+                          <span class="estado activo">Activa</span>
+                        } @else {
+                          <span class="estado pausado">Inactiva</span>
+                        }
+                      </td>
+                      <td>
+                        <div class="fila-acciones">
+                          <button type="button" class="btn btn-secundario chico" (click)="editarRecompensa(recompensa)">Editar</button>
+                          <button type="button" class="btn btn-peligro chico" (click)="pedirBaja('recompensas', recompensa.id, recompensa.nombre)">Borrar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+</section>
+
+@if (panelAbierto()) {
+  <div class="capa anim-aparecer" (click)="cerrarPanel()"></div>
+
+  <aside class="panel" role="dialog" aria-modal="true">
+    <header class="panel-cabecera">
+      <h2>{{ tituloPanel() }}</h2>
+      <button type="button" class="cerrar" aria-label="Cerrar" (click)="cerrarPanel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </header>
+
+    @switch (pestania()) {
+      @case ('cupones') {
+        <form class="panel-forma" [formGroup]="formCupon" (ngSubmit)="guardar()">
+          <div class="panel-cuerpo">
+            <div class="campo">
+              <label for="cupon-codigo">Código</label>
+              <input id="cupon-codigo" type="text" formControlName="codigo" placeholder="BIENVENIDO10" autocomplete="off" />
+              <small class="ayuda">El código se guarda siempre en mayúsculas.</small>
+              @if (formCupon.controls.codigo.touched && formCupon.controls.codigo.invalid) {
+                <span class="error-campo">Ingresá un código de hasta 24 caracteres.</span>
+              }
+            </div>
+
+            <div class="campo">
+              <label for="cupon-descripcion">Descripción</label>
+              <textarea id="cupon-descripcion" rows="2" formControlName="descripcion" placeholder="10% de descuento en tu primera compra"></textarea>
+              @if (formCupon.controls.descripcion.touched && formCupon.controls.descripcion.invalid) {
+                <span class="error-campo">Ingresá una descripción de hasta 160 caracteres.</span>
+              }
+            </div>
+
+            <div class="campo">
+              <label for="cupon-porcentaje">Porcentaje de descuento</label>
+              <input id="cupon-porcentaje" type="number" min="1" max="100" step="1" formControlName="porcentaje" />
+              @if (formCupon.controls.porcentaje.touched && formCupon.controls.porcentaje.invalid) {
+                <span class="error-campo">El porcentaje tiene que estar entre 1 y 100.</span>
+              }
+            </div>
+
+            <div class="campo">
+              <label>Tipo de cupón</label>
+              <div class="opciones">
+                <button type="button" class="opcion" [class.elegida]="tipoCupon() === 'bienvenida'" (click)="elegirTipoCupon('bienvenida')">
+                  <strong>Bienvenida</strong>
+                  <small>Se aplica una sola vez, en la primera compra del usuario.</small>
+                </button>
+                <button type="button" class="opcion" [class.elegida]="tipoCupon() === 'edad'" (click)="elegirTipoCupon('edad')">
+                  <strong>Por edad</strong>
+                  <small>Se aplica a quienes superan la edad mínima que indiques.</small>
+                </button>
+              </div>
+            </div>
+
+            @if (tipoCupon() === 'edad') {
+              <div class="campo anim-aparecer">
+                <label for="cupon-edad">Edad mínima</label>
+                <input id="cupon-edad" type="number" min="1" max="120" step="1" formControlName="edad_minima" placeholder="60" />
+                @if (formCupon.controls.edad_minima.touched && formCupon.controls.edad_minima.invalid) {
+                  <span class="error-campo">Ingresá una edad mínima entre 1 y 120.</span>
+                }
+              </div>
+            }
+
+            <label class="check">
+              <input type="checkbox" formControlName="activo" />
+              <span>
+                <strong>Cupón activo</strong>
+                <small>Solo los cupones activos se pueden aplicar en la compra.</small>
+              </span>
+            </label>
+          </div>
+
+          <footer class="panel-pie">
+            <button type="button" class="btn btn-secundario" (click)="cerrarPanel()">Cancelar</button>
+            <button type="submit" class="btn btn-primario" [disabled]="guardando()">
+              {{ guardando() ? 'Guardando...' : 'Guardar' }}
+            </button>
+          </footer>
+        </form>
+      }
+
+      @case ('recompensas') {
+        <form class="panel-forma" [formGroup]="formRecompensa" (ngSubmit)="guardar()">
+          <div class="panel-cuerpo">
+            <div class="campo">
+              <label for="recompensa-nombre">Nombre</label>
+              <input id="recompensa-nombre" type="text" formControlName="nombre" placeholder="Entrada gratis 2D" autocomplete="off" />
+              @if (formRecompensa.controls.nombre.touched && formRecompensa.controls.nombre.invalid) {
+                <span class="error-campo">Ingresá un nombre de hasta 80 caracteres.</span>
+              }
+            </div>
+
+            <div class="campo">
+              <label>Tipo de recompensa</label>
+              <div class="opciones">
+                <button type="button" class="opcion" [class.elegida]="tipoRecompensa() === 'entrada'" (click)="elegirTipoRecompensa('entrada')">
+                  <strong>Entrada</strong>
+                  <small>El cliente canjea sus puntos por una entrada de cine.</small>
+                </button>
+                <button type="button" class="opcion" [class.elegida]="tipoRecompensa() === 'producto'" (click)="elegirTipoRecompensa('producto')">
+                  <strong>Producto</strong>
+                  <small>El cliente canjea sus puntos por un producto del candy bar.</small>
+                </button>
+              </div>
+            </div>
+
+            @if (tipoRecompensa() === 'producto') {
+              <div class="campo anim-aparecer">
+                <label for="recompensa-producto">Producto</label>
+                <select id="recompensa-producto" formControlName="producto_id">
+                  <option value="">Elegí un producto</option>
+                  @for (producto of productos(); track producto.id) {
+                    <option [value]="producto.id">{{ producto.nombre }}</option>
+                  }
+                </select>
+                @if (formRecompensa.controls.producto_id.touched && formRecompensa.controls.producto_id.invalid) {
+                  <span class="error-campo">Elegí el producto que se entrega al canjear.</span>
+                }
+              </div>
+            }
+
+            <div class="campo">
+              <label for="recompensa-costo">Costo en puntos</label>
+              <input id="recompensa-costo" type="number" min="1" step="10" formControlName="costo_puntos" />
+              @if (formRecompensa.controls.costo_puntos.touched && formRecompensa.controls.costo_puntos.invalid) {
+                <span class="error-campo">Ingresá un costo de al menos 1 punto.</span>
+              }
+            </div>
+
+            <label class="check">
+              <input type="checkbox" formControlName="activo" />
+              <span>
+                <strong>Recompensa activa</strong>
+                <small>Solo las recompensas activas aparecen para canjear.</small>
+              </span>
+            </label>
+          </div>
+
+          <footer class="panel-pie">
+            <button type="button" class="btn btn-secundario" (click)="cerrarPanel()">Cancelar</button>
+            <button type="submit" class="btn btn-primario" [disabled]="guardando()">
+              {{ guardando() ? 'Guardando...' : 'Guardar' }}
+            </button>
+          </footer>
+        </form>
+      }
+    }
+  </aside>
+}
+
+<app-confirmar
+  titulo="¿Eliminar la promoción?"
+  [texto]="textoBaja()"
+  [(abierto)]="confirmando"
+  (confirmado)="confirmarBaja()"
+/>

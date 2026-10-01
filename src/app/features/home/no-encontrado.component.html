@@ -1,0 +1,39 @@
+<section class="pantalla">
+  <div class="contenedor interno anim-subir">
+    <div class="marquesina" aria-hidden="true">
+      <span class="numero">4</span>
+      <span class="rollo">
+        <svg viewBox="0 0 120 120" width="118" height="118">
+          <defs>
+            <linearGradient id="gradRollo404" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#ffd27f" />
+              <stop offset="100%" stop-color="#c98a1c" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="46" fill="none" stroke="url(#gradRollo404)" stroke-width="7" />
+          <circle cx="60" cy="60" r="9" fill="url(#gradRollo404)" />
+          <circle cx="60" cy="34" r="8.5" fill="url(#gradRollo404)" opacity=".75" />
+          <circle cx="60" cy="86" r="8.5" fill="url(#gradRollo404)" opacity=".75" />
+          <circle cx="34" cy="60" r="8.5" fill="url(#gradRollo404)" opacity=".75" />
+          <circle cx="86" cy="60" r="8.5" fill="url(#gradRollo404)" opacity=".75" />
+        </svg>
+      </span>
+      <span class="numero">4</span>
+    </div>
+
+    <h1 class="titulo">Esta función no existe</h1>
+
+    <p class="texto">
+      Buscamos en todas las salas, revisamos atrás de la pantalla y hasta debajo de las butacas,
+      pero esta página no aparece por ningún lado. Puede que el enlace haya cambiado de cartel.
+    </p>
+
+    <p class="ruta">{{ ruta }}</p>
+
+    <div class="acciones">
+      <a class="btn btn-primario" routerLink="/">Volver a la portada</a>
+      <a class="btn btn-secundario" routerLink="/peliculas">Ver la cartelera</a>
+      <button type="button" class="btn btn-fantasma" (click)="volverAtras()">Volver atrás</button>
+    </div>
+  </div>
+</section>

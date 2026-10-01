@@ -1,0 +1,138 @@
+<section class="contenedor cuenta">
+  <header class="encabezado anim-subir">
+    <h1>Mis películas</h1>
+    <p>El historial de todo lo que viste en CineNova. Calificá lo que te gustó y ayudá a otros a elegir.</p>
+  </header>
+
+  <nav class="pestanias" aria-label="Secciones de mi cuenta">
+    <a routerLink="/cuenta" routerLinkActive="activa" [routerLinkActiveOptions]="exacto">Mi perfil</a>
+    <a routerLink="/cuenta/compras" routerLinkActive="activa">Mis compras</a>
+    <a routerLink="/cuenta/peliculas" routerLinkActive="activa">Mis películas</a>
+    <a routerLink="/cuenta/puntos" routerLinkActive="activa">Mis puntos</a>
+  </nav>
+
+  @if (cargando()) {
+    <app-cargando texto="Armando tu historial..." />
+  } @else if (error()) {
+    <div class="tarjeta aviso-error anim-escalar" role="alert">
+      <h2>No pudimos cargar tus películas</h2>
+      <p>{{ error() }}</p>
+      <button type="button" class="btn btn-secundario" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (lista().length === 0) {
+    <app-vacio
+      titulo="Todavía no viste ninguna película"
+      texto="Acá van a aparecer las películas que viste, con la fecha y tu calificación.">
+      <a class="btn btn-primario" routerLink="/peliculas">Elegir una película</a>
+    </app-vacio>
+  } @else {
+    <p class="resumen-linea">
+      Viste <strong>{{ lista().length }}</strong>
+      @if (lista().length === 1) {
+        función
+      } @else {
+        funciones
+      }
+      y calificaste <strong>{{ calificadas() }}</strong>.
+    </p>
+
+    <ul class="grilla">
+      @for (pelicula of lista(); track clave(pelicula)) {
+        <li class="ficha anim-subir">
+          <a class="poster" [routerLink]="['/peliculas', pelicula.pelicula_id]">
+            @if (pelicula.imagen_url) {
+              <img [src]="pelicula.imagen_url" [alt]="pelicula.titulo" loading="lazy" />
+            } @else {
+              <span class="sin-poster" aria-hidden="true">{{ pelicula.titulo.charAt(0) }}</span>
+            }
+            <span class="velo"></span>
+          </a>
+
+          <div class="info">
+            <h2 [title]="pelicula.titulo">{{ pelicula.titulo }}</h2>
+            <p class="vista">Vista el {{ fechaDe(pelicula) }}</p>
+
+            @if (pelicula.estrellas !== null) {
+              <div class="calificacion">
+                <app-estrellas [valor]="pelicula.estrellas ?? 0" [tamanio]="16" />
+                <span class="numero">{{ pelicula.estrellas }}/5</span>
+              </div>
+              <button type="button" class="btn btn-fantasma chico" (click)="abrir(pelicula)">
+                Editar reseña
+              </button>
+            } @else {
+              <button type="button" class="btn btn-secundario chico" (click)="abrir(pelicula)">
+                Calificar
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+@if (editando(); as pelicula) {
+  <div class="capa anim-aparecer" (click)="cerrar()">
+    <div class="panel anim-escalar" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <header class="cabecera">
+        <div>
+          <span class="rotulo">Tu reseña</span>
+          <h2>{{ pelicula.titulo }}</h2>
+        </div>
+        <button type="button" class="cerrar" aria-label="Cerrar" (click)="cerrar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+
+      @if (buscandoResenia()) {
+        <app-cargando texto="Buscando tu reseña..." />
+      }
+
+      <div class="puntaje">
+        <span class="rotulo">¿Cuánto te gustó?</span>
+        <app-estrellas
+          [valor]="puntaje()"
+          [editable]="true"
+          [tamanio]="36"
+          (valorChange)="puntaje.set($event)" />
+        <span class="leyenda">
+          @switch (puntaje()) {
+            @case (1) { Muy mala }
+            @case (2) { Floja }
+            @case (3) { Entretenida }
+            @case (4) { Muy buena }
+            @case (5) { Excelente }
+            @default { Tocá las estrellas para puntuar }
+          }
+        </span>
+      </div>
+
+      <form [formGroup]="formulario" (ngSubmit)="guardarResenia()">
+        <div class="campo">
+          <label for="comentario">Tu comentario</label>
+          <textarea
+            id="comentario"
+            rows="4"
+            formControlName="comentario"
+            placeholder="Contanos qué te pareció (opcional)"></textarea>
+        </div>
+
+        <div class="acciones">
+          <button type="button" class="btn btn-secundario" [disabled]="guardando()" (click)="cerrar()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primario" [disabled]="guardando()">
+            @if (guardando()) {
+              Guardando...
+            } @else {
+              Guardar reseña
+            }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

@@ -1,0 +1,128 @@
+<section class="contenedor pagina">
+  <header class="encabezado anim-subir">
+    <div class="titulos">
+      <p class="sobretitulo">En pantalla ahora</p>
+      <h1>Cartelera</h1>
+      <p class="bajada">Elegí tu película, tu función y tus butacas en un minuto.</p>
+    </div>
+
+    <div class="buscador">
+      <span class="lupa" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-3.4-3.4" />
+        </svg>
+      </span>
+
+      <input
+        type="search"
+        class="entrada"
+        placeholder="Buscar por título..."
+        aria-label="Buscar películas por título"
+        [value]="texto()"
+        (input)="alEscribir($event)" />
+
+      @if (texto().length > 0) {
+        <button type="button" class="borrar" aria-label="Limpiar búsqueda" (click)="limpiarBusqueda()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      }
+    </div>
+  </header>
+
+  <div class="generos" role="group" aria-label="Filtrar por género">
+    <button type="button" class="filtro" [class.activo]="generoId() === null" (click)="elegirGenero(null)">
+      Todos
+    </button>
+
+    @for (genero of generos(); track genero.id) {
+      <button
+        type="button"
+        class="filtro"
+        [class.activo]="generoId() === genero.id"
+        (click)="elegirGenero(genero.id)">
+        {{ genero.nombre }}
+      </button>
+    }
+  </div>
+
+  @if (cargando()) {
+    <div class="grilla">
+      @for (hueco of esqueletos; track hueco) {
+        <div class="molde">
+          <div class="skeleton afiche"></div>
+          <div class="skeleton linea"></div>
+          <div class="skeleton linea corta"></div>
+        </div>
+      }
+    </div>
+  } @else {
+    <p class="contador">
+      {{ resumen() }}
+      @if (generoElegido()) {
+        <span class="detalle-filtro">· {{ generoElegido() }}</span>
+      }
+      @if (busqueda()) {
+        <span class="detalle-filtro">· «{{ busqueda() }}»</span>
+      }
+    </p>
+
+    @if (lista().length === 0) {
+      <app-vacio
+        titulo="No encontramos películas"
+        texto="Probá con otro título o sacá los filtros para ver toda la cartelera.">
+        <button type="button" class="btn btn-secundario" (click)="limpiarTodo()">Ver toda la cartelera</button>
+      </app-vacio>
+    } @else {
+      <div class="grilla">
+        @for (pelicula of lista(); track pelicula.id) {
+          <a class="ficha anim-subir" [routerLink]="['/peliculas', pelicula.id]">
+            <div class="afiche">
+              @if (pelicula.imagen_url) {
+                <img [src]="pelicula.imagen_url" [alt]="'Afiche de ' + pelicula.titulo" loading="lazy" />
+              } @else {
+                <span class="sin-afiche" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                    <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                    <path d="M7 5v14M17 5v14M2.5 12h19" />
+                  </svg>
+                </span>
+              }
+
+              <span class="edad chip" [class.chip-peligro]="pelicula.restriccion_edad >= 16">
+                {{ pelicula.restriccion_edad | restriccion }}
+              </span>
+
+              @if (pelicula.destacada) {
+                <span class="destacada chip chip-accent">Destacada</span>
+              }
+
+              <span class="velo">
+                <span class="ver">Ver funciones</span>
+              </span>
+            </div>
+
+            <div class="datos">
+              <h2 class="titulo">{{ pelicula.titulo }}</h2>
+
+              <div class="puntaje">
+                <app-estrellas [valor]="pelicula.promedio ?? 0" [tamanio]="13" />
+                <span class="numero">{{ pelicula.promedio ?? 0 }}</span>
+                <span class="separador">·</span>
+                <span class="duracion">{{ pelicula.duracion_min | duracion }}</span>
+              </div>
+
+              <div class="generos-ficha">
+                @for (genero of pelicula.generos ?? []; track genero.id) {
+                  <span class="chip">{{ genero.nombre }}</span>
+                }
+              </div>
+            </div>
+          </a>
+        }
+      </div>
+    }
+  }
+</section>

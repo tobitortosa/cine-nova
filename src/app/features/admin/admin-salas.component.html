@@ -1,0 +1,199 @@
+<section class="pagina">
+  <header class="encabezado">
+    <div class="titulos">
+      <h1>Salas</h1>
+      <p>Cada sala nueva genera sus butacas automáticamente al crearse.</p>
+    </div>
+
+    <button type="button" class="btn btn-primario" (click)="abrirPanel()">
+      <svg class="mas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      Nueva sala
+    </button>
+  </header>
+
+  <div class="disposicion">
+    <div class="columna-lista">
+      @if (cargando()) {
+        <app-cargando texto="Cargando salas y butacas..." />
+      } @else if (lista().length === 0) {
+        <app-vacio
+          titulo="Todavía no hay salas"
+          texto="Creá la primera sala y el sistema arma sus 532 butacas sin que tengas que cargarlas.">
+          <button type="button" class="btn btn-primario" (click)="abrirPanel()">Nueva sala</button>
+        </app-vacio>
+      } @else {
+        <p class="resumen">
+          {{ lista().length }} salas · {{ totalButacas() }} butacas en total
+        </p>
+
+        <div class="salas">
+          @for (detalle of lista(); track detalle.sala.id) {
+            <article class="sala anim-subir">
+              <header class="sala-cabecera">
+                <div class="identidad">
+                  <span class="icono" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 18V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9M3 18h18M7 18v-4h10v4M7 14V9M12 14V9M17 14V9" />
+                    </svg>
+                  </span>
+                  <div>
+                    <h2>{{ detalle.sala.nombre }}</h2>
+                    <p class="butacas">{{ detalle.total }} butacas</p>
+                  </div>
+                </div>
+
+                <button type="button" class="borrar" aria-label="Eliminar sala" (click)="pedirBaja(detalle.sala)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+                  </svg>
+                </button>
+              </header>
+
+              <div class="barra-tipos" aria-hidden="true">
+                <span class="tramo estandar" [style.width.%]="porcentaje(detalle.estandar, detalle.total)"></span>
+                <span class="tramo vip" [style.width.%]="porcentaje(detalle.vip, detalle.total)"></span>
+                <span class="tramo accesible" [style.width.%]="porcentaje(detalle.accesible, detalle.total)"></span>
+              </div>
+
+              <ul class="desglose">
+                <li>
+                  <span class="punto estandar"></span>
+                  <span class="etiqueta">Estándar</span>
+                  <strong>{{ detalle.estandar }}</strong>
+                </li>
+                <li>
+                  <span class="punto vip"></span>
+                  <span class="etiqueta">VIP</span>
+                  <strong>{{ detalle.vip }}</strong>
+                </li>
+                <li>
+                  <span class="punto accesible"></span>
+                  <span class="etiqueta">Accesibles</span>
+                  <strong>{{ detalle.accesible }}</strong>
+                </li>
+              </ul>
+            </article>
+          }
+        </div>
+      }
+    </div>
+
+    <aside class="columna-esquema">
+      <div class="esquema tarjeta">
+        <h2>Distribución de referencia</h2>
+        <p class="aclaracion">
+          Todas las salas se arman igual: 20 filas de la A a la T, con bloques laterales de 4
+          butacas y un bloque central de 20. Las filas <strong>J</strong> y <strong>K</strong> son
+          accesibles y las filas <strong>R</strong>, <strong>S</strong> y <strong>T</strong> son VIP.
+        </p>
+
+        <div class="pantalla">PANTALLA</div>
+
+        <div class="mapa">
+          @for (letra of filas; track letra) {
+            <div class="fila-mapa">
+              <span class="letra">{{ letra }}</span>
+
+              <div class="bloque">
+                @for (numero of bloqueLateral; track numero) {
+                  <span
+                    class="butaca"
+                    [class.vip]="esVip(letra)"
+                    [class.accesible]="esAccesible(letra)"></span>
+                }
+              </div>
+
+              <div class="bloque centro">
+                @for (numero of bloqueCentral; track numero) {
+                  <span
+                    class="butaca"
+                    [class.vip]="esVip(letra)"
+                    [class.accesible]="esAccesible(letra)"></span>
+                }
+              </div>
+
+              <div class="bloque">
+                @for (numero of bloqueLateral; track numero) {
+                  <span
+                    class="butaca"
+                    [class.vip]="esVip(letra)"
+                    [class.accesible]="esAccesible(letra)"></span>
+                }
+              </div>
+
+              <span class="letra">{{ letra }}</span>
+            </div>
+          }
+        </div>
+
+        <ul class="leyenda">
+          <li><span class="punto estandar"></span> Estándar</li>
+          <li><span class="punto vip"></span> VIP</li>
+          <li><span class="punto accesible"></span> Accesible</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  @if (panelAbierto()) {
+    <div class="overlay anim-aparecer" (click)="cerrarPanel()"></div>
+
+    <aside class="panel" role="dialog" aria-modal="true" aria-label="Formulario de sala">
+      <header class="panel-cabecera">
+        <h2>Nueva sala</h2>
+        <button type="button" class="cerrar" aria-label="Cerrar panel" (click)="cerrarPanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+
+      <form class="panel-cuerpo" [formGroup]="formulario" (ngSubmit)="guardar()">
+        <div class="desplazable">
+          <div class="nota">
+            <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v6M12 7.5v.01" />
+            </svg>
+            <div class="texto">
+              <strong>Solo hace falta el nombre.</strong>
+              <span>
+                Al guardar, la base de datos genera sola las <strong>532 butacas</strong> de la sala
+                con la distribución estándar de CineNova: no tenés que cargarlas a mano.
+              </span>
+            </div>
+          </div>
+
+          <div class="campo">
+            <label for="nombre">Nombre de la sala</label>
+            <input id="nombre" type="text" formControlName="nombre" placeholder="Sala 5" />
+            @if (formulario.controls.nombre.touched && formulario.controls.nombre.invalid) {
+              <span class="error-campo">Escribí un nombre de entre 2 y 60 caracteres.</span>
+            }
+          </div>
+        </div>
+
+        <footer class="panel-pie">
+          <button type="button" class="btn btn-secundario" [disabled]="guardando()" (click)="cerrarPanel()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primario" [disabled]="guardando()">
+            @if (guardando()) {
+              Creando butacas...
+            } @else {
+              Crear sala
+            }
+          </button>
+        </footer>
+      </form>
+    </aside>
+  }
+
+  <app-confirmar
+    [(abierto)]="confirmaAbierta"
+    titulo="¿Eliminar la sala?"
+    [texto]="textoConfirmacion()"
+    (confirmado)="eliminar()" />
+</section>

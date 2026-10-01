@@ -1,0 +1,468 @@
+@if (cargando()) {
+  <div class="contenedor pantalla-estado">
+    <app-cargando texto="Preparando tu función..." />
+  </div>
+} @else {
+  @if (funcion(); as f) {
+    <div class="contenedor compra">
+      <header class="encabezado anim-aparecer">
+        @if (f.pelicula?.imagen_url; as portada) {
+          <img class="portada" [src]="portada" [alt]="f.pelicula?.titulo ?? 'Película'" />
+        } @else {
+          <div class="portada sin-portada">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M3 9h18M8 4v5M16 4v5" />
+            </svg>
+          </div>
+        }
+
+        <div class="titulo">
+          <a class="volver" [routerLink]="['/peliculas', f.pelicula_id]">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Volver a la película
+          </a>
+          <h1>{{ f.pelicula?.titulo ?? 'Función' }}</h1>
+          <p class="cuando">{{ fechaHora(f.inicio) }}</p>
+          <div class="chips">
+            <span class="chip chip-accent">{{ f.formato }}</span>
+            <span class="chip">{{ etiquetaIdioma(f) }}</span>
+            <span class="chip">{{ f.sala?.nombre ?? 'Sala' }}</span>
+            @if (f.pelicula?.duracion_min; as minutos) {
+              <span class="chip">{{ minutos | duracion }}</span>
+            }
+            <span class="chip" [class.chip-peligro]="restriccion() > 0">
+              {{ f.pelicula?.restriccion_edad | restriccion }}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <ol class="pasos">
+        @for (etapa of etapas; track etapa.numero) {
+          <li [class.activo]="paso() === etapa.numero" [class.hecho]="paso() > etapa.numero">
+            <button type="button" (click)="irAPaso(etapa.numero)">
+              <span class="burbuja">{{ etapa.numero }}</span>
+              <span class="nombre">{{ etapa.nombre }}</span>
+            </button>
+          </li>
+        }
+      </ol>
+
+      @switch (paso()) {
+        @case (1) {
+          <section class="plano anim-aparecer">
+            <div class="lado-mapa">
+              @if (restriccion() > 0) {
+                <div class="aviso-edad">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M12 9v5M12 17.5v.5" />
+                    <path d="M10.3 3.9 2.6 17.1A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                  </svg>
+                  <p>
+                    <strong>{{ f.pelicula?.restriccion_edad | restriccion }}</strong>
+                    Esta película tiene restricción de edad. Los menores deben ingresar acompañados
+                    por un adulto y te vamos a pedir la fecha de nacimiento al pagar.
+                  </p>
+                </div>
+              }
+
+              <div class="pantalla"><span>PANTALLA</span></div>
+
+              @if (filas().length === 0) {
+                <app-vacio
+                  titulo="No pudimos dibujar la sala"
+                  texto="Actualizá la página en unos segundos para ver el mapa de butacas."
+                />
+              } @else {
+                <div class="mapa">
+                  <div class="butacas">
+                    @for (fila of filas(); track fila.letra) {
+                      <div class="fila">
+                        <span class="letra">{{ fila.letra }}</span>
+                        @for (bloque of fila.bloques; track $index) {
+                          <div class="bloque">
+                            @for (vista of bloque; track vista.butaca.id) {
+                              <button
+                                type="button"
+                                class="butaca"
+                                [class.vendida]="vista.estado === 'vendida'"
+                                [class.reservada]="vista.estado === 'reservada'"
+                                [class.vip]="vista.butaca.tipo === 'vip'"
+                                [class.accesible]="vista.butaca.tipo === 'accesible'"
+                                [class.elegida]="vista.seleccionada"
+                                [disabled]="vista.estado !== 'libre'"
+                                [attr.aria-pressed]="vista.seleccionada"
+                                [attr.aria-label]="descripcionButaca(vista)"
+                                [title]="descripcionButaca(vista)"
+                                (click)="alternar(vista)"
+                              >
+                                @if (vista.butaca.tipo === 'accesible') {
+                                  <svg class="icono-silla" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="10" cy="4" r="2" />
+                                    <path d="M10 7v6h6" />
+                                    <path d="M16 13l2.5 6" />
+                                    <path d="M15.5 16.5A5.5 5.5 0 1 1 9 11" />
+                                  </svg>
+                                } @else {
+                                  <span>{{ vista.butaca.numero }}</span>
+                                }
+                              </button>
+                            }
+                          </div>
+                        }
+                        <span class="letra">{{ fila.letra }}</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <ul class="referencia">
+                <li><span class="muestra"></span> Libre</li>
+                <li><span class="muestra elegida"></span> Elegida por vos</li>
+                <li><span class="muestra vendida"></span> Vendida</li>
+                <li><span class="muestra reservada"></span> Reservada por otra persona</li>
+                <li><span class="muestra"></span> Estándar · {{ f.precio_base | precio }}</li>
+                <li><span class="muestra vip"></span> VIP (filas R, S y T) · {{ f.precio_vip | precio }}</li>
+                <li>
+                  <span class="muestra accesible">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="10" cy="4" r="2" />
+                      <path d="M10 7v6h6" />
+                      <path d="M16 13l2.5 6" />
+                      <path d="M15.5 16.5A5.5 5.5 0 1 1 9 11" />
+                    </svg>
+                  </span>
+                  Accesible (filas J y K) · {{ f.precio_base | precio }}
+                </li>
+              </ul>
+            </div>
+
+            <aside class="resumen">
+              <h3>Tu compra</h3>
+
+              <dl class="datos">
+                <div><dt>Película</dt><dd>{{ f.pelicula?.titulo ?? 'Función' }}</dd></div>
+                <div><dt>Función</dt><dd>{{ fechaHora(f.inicio) }}</dd></div>
+                <div><dt>Sala</dt><dd>{{ f.sala?.nombre ?? 'A confirmar' }}</dd></div>
+                <div><dt>Formato</dt><dd>{{ f.formato }}</dd></div>
+                <div><dt>Idioma</dt><dd>{{ etiquetaIdioma(f) }}</dd></div>
+              </dl>
+
+              <div class="elegidas">
+                <h4>
+                  Butacas elegidas
+                  <span class="contador">{{ carrito.butacas().length }}/10</span>
+                </h4>
+
+                @for (butaca of elegidas(); track butaca.id) {
+                  <div class="elegida-fila">
+                    <span class="etq">{{ butaca | butaca }}</span>
+                    <span
+                      class="tipo"
+                      [class.vip]="butaca.tipo === 'vip'"
+                      [class.acc]="butaca.tipo === 'accesible'"
+                    >{{ etiquetaTipo(butaca.tipo) }}</span>
+                    <span class="monto">{{ carrito.precioDe(butaca) | precio }}</span>
+                    <button
+                      type="button"
+                      class="quitar"
+                      [attr.aria-label]="'Quitar butaca ' + butaca.fila + butaca.numero"
+                      (click)="quitar(butaca)"
+                    >×</button>
+                  </div>
+                } @empty {
+                  <p class="pista">Tocá las butacas del mapa para elegirlas.</p>
+                }
+              </div>
+
+              @if (segundos() > 0) {
+                <p class="reloj">
+                  Te guardamos las butacas por <strong>{{ reloj() }}</strong>
+                </p>
+              }
+
+              <div class="total-linea">
+                <span>Subtotal</span>
+                <strong>{{ carrito.totalEntradas() | precio }}</strong>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primario ancho"
+                [disabled]="carrito.butacas().length === 0"
+                (click)="irAPaso(2)"
+              >Continuar</button>
+            </aside>
+          </section>
+        }
+
+        @case (2) {
+          <section class="candy anim-aparecer">
+            <div class="intro">
+              <h2>Sumá algo rico</h2>
+              <p>Retirá tu pedido en el candy bar mostrando el QR de la compra. También podés seguir sin agregar nada.</p>
+            </div>
+
+            @if (cargandoCandy()) {
+              <app-cargando texto="Cargando el candy bar..." />
+            } @else {
+              @if (combos().length > 0) {
+                <h3 class="titulo-seccion">Combos destacados</h3>
+                <div class="grilla">
+                  @for (combo of combos(); track combo.id) {
+                    <article class="producto destacado">
+                      <div class="imagen">
+                        @if (combo.imagen_url; as imagen) {
+                          <img [src]="imagen" [alt]="combo.nombre" />
+                        } @else {
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 9h12l-1 11H7L6 9z" />
+                            <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+                          </svg>
+                        }
+                        <span class="sello">Combo</span>
+                      </div>
+                      <div class="cuerpo">
+                        <h4>{{ combo.nombre }}</h4>
+                        @if (combo.descripcion) {
+                          <p>{{ combo.descripcion }}</p>
+                        }
+                        <div class="pie">
+                          <strong>{{ combo.precio | precio }}</strong>
+                          @if (cantidadDe(null, combo.id); as cantidad) {
+                            <div class="cantidad">
+                              <button type="button" aria-label="Quitar uno" (click)="cambiarCantidad(null, combo.id, -1)">−</button>
+                              <span>{{ cantidad }}</span>
+                              <button type="button" aria-label="Agregar uno" (click)="cambiarCantidad(null, combo.id, 1)">+</button>
+                            </div>
+                          } @else {
+                            <button type="button" class="btn btn-secundario chico" (click)="agregarCombo(combo)">Agregar</button>
+                          }
+                        </div>
+                      </div>
+                    </article>
+                  }
+                </div>
+              }
+
+              @for (grupo of grupos(); track grupo.nombre) {
+                <h3 class="titulo-seccion">{{ grupo.nombre }}</h3>
+                <div class="grilla">
+                  @for (producto of grupo.productos; track producto.id) {
+                    <article class="producto">
+                      <div class="imagen">
+                        @if (producto.imagen_url; as imagen) {
+                          <img [src]="imagen" [alt]="producto.nombre" />
+                        } @else {
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 9h12l-1 11H7L6 9z" />
+                            <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+                          </svg>
+                        }
+                      </div>
+                      <div class="cuerpo">
+                        <h4>{{ producto.nombre }}</h4>
+                        @if (producto.descripcion) {
+                          <p>{{ producto.descripcion }}</p>
+                        }
+                        <div class="pie">
+                          <strong>{{ producto.precio | precio }}</strong>
+                          @if (cantidadDe(producto.id, null); as cantidad) {
+                            <div class="cantidad">
+                              <button type="button" aria-label="Quitar uno" (click)="cambiarCantidad(producto.id, null, -1)">−</button>
+                              <span>{{ cantidad }}</span>
+                              <button type="button" aria-label="Agregar uno" (click)="cambiarCantidad(producto.id, null, 1)">+</button>
+                            </div>
+                          } @else {
+                            <button type="button" class="btn btn-secundario chico" (click)="agregarProducto(producto)">Agregar</button>
+                          }
+                        </div>
+                      </div>
+                    </article>
+                  }
+                </div>
+              } @empty {
+                @if (combos().length === 0) {
+                  <app-vacio
+                    titulo="El candy bar está vacío"
+                    texto="Por ahora no hay productos cargados. Podés continuar con tus entradas."
+                  />
+                }
+              }
+            }
+
+            <div class="barra">
+              <div class="barra-info">
+                <span>
+                  {{ carrito.butacas().length }}
+                  {{ carrito.butacas().length === 1 ? 'entrada' : 'entradas' }}
+                  ·
+                  {{ carrito.cantidadProductos() }}
+                  {{ carrito.cantidadProductos() === 1 ? 'producto' : 'productos' }}
+                </span>
+                <strong>{{ carrito.subtotal() | precio }}</strong>
+              </div>
+              <div class="barra-botones">
+                <button type="button" class="btn btn-secundario" (click)="irAPaso(1)">Volver</button>
+                <button type="button" class="btn btn-primario" (click)="irAPaso(3)">Continuar</button>
+              </div>
+            </div>
+          </section>
+        }
+
+        @default {
+          <section class="pago anim-aparecer">
+            <div class="detalle">
+              <h3>Tu pedido</h3>
+
+              <div class="bloque-detalle">
+                <h4>Entradas</h4>
+                @for (butaca of elegidas(); track butaca.id) {
+                  <div class="linea">
+                    <span>
+                      Butaca {{ butaca | butaca }}
+                      <em>{{ etiquetaTipo(butaca.tipo) }}</em>
+                    </span>
+                    <strong>{{ carrito.precioDe(butaca) | precio }}</strong>
+                  </div>
+                } @empty {
+                  <p class="pista">No hay butacas elegidas.</p>
+                }
+                <div class="linea parcial">
+                  <span>Subtotal entradas</span>
+                  <strong>{{ carrito.totalEntradas() | precio }}</strong>
+                </div>
+              </div>
+
+              <div class="bloque-detalle">
+                <h4>Candy bar</h4>
+                @for (item of carrito.items(); track $index) {
+                  <div class="linea">
+                    <span>{{ item.cantidad }} × {{ item.nombre }}</span>
+                    <strong>{{ item.cantidad * item.precio_unitario | precio }}</strong>
+                  </div>
+                } @empty {
+                  <p class="pista">No agregaste productos.</p>
+                }
+                <div class="linea parcial">
+                  <span>Subtotal productos</span>
+                  <strong>{{ carrito.totalProductos() | precio }}</strong>
+                </div>
+              </div>
+
+              <div class="funcion-mini">
+                <p><strong>{{ f.pelicula?.titulo ?? 'Función' }}</strong></p>
+                <p>{{ fechaHora(f.inicio) }} · {{ f.sala?.nombre ?? 'Sala' }} · {{ f.formato }} · {{ etiquetaIdioma(f) }}</p>
+              </div>
+            </div>
+
+            <form class="formulario" [formGroup]="formulario" (ngSubmit)="confirmar()">
+              <h3>Datos de la compra</h3>
+
+              <div class="campo">
+                <label for="email">Email de contacto</label>
+                <input id="email" type="email" formControlName="email" placeholder="vos@email.com" autocomplete="email" />
+                @if (formulario.controls.email.touched && formulario.controls.email.invalid) {
+                  <span class="error-campo">Escribí un email válido para enviarte la entrada</span>
+                }
+                @if (formulario.controls.email.disabled) {
+                  <span class="ayuda">Usamos el email de tu cuenta.</span>
+                }
+              </div>
+
+              @if (necesitaNacimiento()) {
+                <div class="campo">
+                  <label for="nacimiento">Fecha de nacimiento</label>
+                  <input id="nacimiento" type="date" formControlName="fechaNacimiento" />
+                  @if (formulario.controls.fechaNacimiento.touched && formulario.controls.fechaNacimiento.invalid) {
+                    <span class="error-campo">Necesitamos tu fecha de nacimiento para esta película</span>
+                  }
+                  <span class="ayuda">Esta función es para mayores de {{ restriccion() }} años.</span>
+                </div>
+              }
+
+              @if (auth.estaLogueado()) {
+                <div class="campo cupon">
+                  <label for="cupon">Cupón de descuento</label>
+                  <div class="fila-cupon">
+                    <input id="cupon" type="text" formControlName="cupon" placeholder="CINENOVA10" />
+                    @if (cuponAplicado()) {
+                      <button type="button" class="btn btn-fantasma" (click)="quitarCupon()">Quitar</button>
+                    } @else {
+                      <button type="button" class="btn btn-secundario" [disabled]="aplicandoCupon()" (click)="aplicarCupon()">
+                        {{ aplicandoCupon() ? 'Validando...' : 'Aplicar' }}
+                      </button>
+                    }
+                  </div>
+                  @if (cuponAplicado(); as cupon) {
+                    <span class="ok-campo">{{ cupon.codigo }} aplicado · {{ cupon.porcentaje }}% de descuento</span>
+                  }
+                </div>
+
+                @if (creditoDisponible() > 0) {
+                  <label class="checkbox">
+                    <input type="checkbox" formControlName="usarCredito" />
+                    <span>
+                      Usar mi crédito
+                      <em>Tenés {{ creditoDisponible() | precio }} disponibles</em>
+                    </span>
+                  </label>
+                }
+              } @else {
+                <p class="invitado">
+                  Comprás como invitado. <a routerLink="/auth/login">Ingresá a tu cuenta</a> para usar
+                  cupones, crédito y sumar puntos.
+                </p>
+              }
+
+              <div class="totales">
+                <div class="linea">
+                  <span>Subtotal</span>
+                  <strong>{{ carrito.subtotal() | precio }}</strong>
+                </div>
+                @if (descuento() > 0) {
+                  <div class="linea verde">
+                    <span>Descuento</span>
+                    <strong>− {{ descuento() | precio }}</strong>
+                  </div>
+                }
+                @if (creditoUsado() > 0) {
+                  <div class="linea verde">
+                    <span>Crédito usado</span>
+                    <strong>− {{ creditoUsado() | precio }}</strong>
+                  </div>
+                }
+                <div class="linea grande">
+                  <span>Total a pagar</span>
+                  <strong>{{ total() | precio }}</strong>
+                </div>
+                @if (auth.estaLogueado()) {
+                  <p class="puntos">Vas a sumar <strong>{{ puntosGanados() }}</strong> puntos con esta compra.</p>
+                }
+              </div>
+
+              <div class="acciones">
+                <button type="button" class="btn btn-secundario" [disabled]="procesando()" (click)="irAPaso(2)">Volver</button>
+                <button type="submit" class="btn btn-primario" [disabled]="procesando() || carrito.butacas().length === 0">
+                  {{ procesando() ? 'Procesando...' : 'Confirmar compra' }}
+                </button>
+              </div>
+            </form>
+          </section>
+        }
+      }
+    </div>
+  } @else {
+    <div class="contenedor pantalla-estado">
+      <app-vacio
+        titulo="No encontramos esa función"
+        texto="Puede que se haya dado de baja o que el enlace esté mal. Mirá la cartelera para elegir otra."
+      />
+      <a class="btn btn-primario" routerLink="/peliculas">Ver cartelera</a>
+    </div>
+  }
+}

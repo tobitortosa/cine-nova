@@ -1,0 +1,64 @@
+:host {
+  display: block;
+}
+
+.vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 54px 24px;
+  text-align: center;
+  background: var(--c-surface);
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-lg);
+}
+
+.icono {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 6px;
+  border-radius: var(--r-full);
+  background: var(--c-surface-2);
+  color: var(--c-text-faint);
+  box-shadow: inset 0 0 0 1px var(--c-border);
+}
+
+.icono svg {
+  width: 30px;
+  height: 30px;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--c-text);
+}
+
+.texto {
+  margin: 0;
+  max-width: 46ch;
+  font-size: .9rem;
+  color: var(--c-text-soft);
+}
+
+.acciones:empty {
+  display: none;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+@media (max-width: 560px) {
+  .vacio {
+    padding: 38px 18px;
+  }
+}

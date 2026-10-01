@@ -1,0 +1,55 @@
+<footer class="pie">
+  <div class="interno">
+    <div class="columna marca-columna">
+      <a class="marca" routerLink="/" aria-label="CineNova, inicio">
+        <svg viewBox="0 0 36 36" width="30" height="30" aria-hidden="true">
+          <defs>
+            <linearGradient id="gradMarcaPie" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#ffd27f" />
+              <stop offset="100%" stop-color="#f5b43c" />
+            </linearGradient>
+          </defs>
+          <rect x="2.5" y="6" width="31" height="24" rx="7" fill="none" stroke="url(#gradMarcaPie)" stroke-width="2" />
+          <circle cx="8" cy="11" r="1.4" fill="url(#gradMarcaPie)" />
+          <circle cx="8" cy="25" r="1.4" fill="url(#gradMarcaPie)" />
+          <circle cx="28" cy="11" r="1.4" fill="url(#gradMarcaPie)" />
+          <circle cx="28" cy="25" r="1.4" fill="url(#gradMarcaPie)" />
+          <path d="M15.2 12.9 L24 18 L15.2 23.1 Z" fill="url(#gradMarcaPie)" />
+        </svg>
+        <span class="marca-texto">Cine<strong>Nova</strong></span>
+      </a>
+      <p class="lema">Tu butaca te está esperando. Estrenos, combos y la mejor pantalla de la ciudad.</p>
+    </div>
+
+    <nav class="columna" aria-label="Cartelera">
+      <h4>Cartelera</h4>
+      <a routerLink="/peliculas">Películas en cartel</a>
+      <a routerLink="/proximamente">Próximamente</a>
+      <a routerLink="/candy">Candy bar</a>
+    </nav>
+
+    <nav class="columna" aria-label="Mi cuenta">
+      <h4>Mi cuenta</h4>
+      <a routerLink="/cuenta">Mis datos</a>
+      <a routerLink="/cuenta/compras">Mis compras</a>
+      <a routerLink="/cuenta/peliculas">Mis películas</a>
+      <a routerLink="/cuenta/puntos">Mis puntos</a>
+    </nav>
+
+    <div class="columna">
+      <h4>El cine</h4>
+      <span class="dato">Av. Siempre Viva 1234, Buenos Aires</span>
+      <span class="dato">Todos los días de 12:00 a 01:00</span>
+      <span class="dato">hola&#64;cinenova.com.ar</span>
+    </div>
+  </div>
+
+  <div class="legal">
+    <div class="legal-interno">
+      <span>© {{ anio }} CineNova. Todos los derechos reservados.</span>
+      <span class="legal-nota">
+        Las entradas no tienen devolución pasada la función. Menores de edad deben ingresar acompañados por un adulto.
+      </span>
+    </div>
+  </div>
+</footer>

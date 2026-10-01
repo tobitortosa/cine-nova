@@ -1,0 +1,115 @@
+<section class="contenedor cuenta">
+  <header class="encabezado anim-subir">
+    <h1>Mis compras</h1>
+    <p>Todas tus entradas, con su código y su comprobante listo para mostrar en la puerta.</p>
+  </header>
+
+  <nav class="pestanias" aria-label="Secciones de mi cuenta">
+    <a routerLink="/cuenta" routerLinkActive="activa" [routerLinkActiveOptions]="exacto">Mi perfil</a>
+    <a routerLink="/cuenta/compras" routerLinkActive="activa">Mis compras</a>
+    <a routerLink="/cuenta/peliculas" routerLinkActive="activa">Mis películas</a>
+    <a routerLink="/cuenta/puntos" routerLinkActive="activa">Mis puntos</a>
+  </nav>
+
+  @if (cargando()) {
+    <app-cargando texto="Buscando tus compras..." />
+  } @else if (error()) {
+    <div class="tarjeta aviso-error anim-escalar" role="alert">
+      <h2>No pudimos cargar tus compras</h2>
+      <p>{{ error() }}</p>
+      <button type="button" class="btn btn-secundario" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (lista().length === 0) {
+    <app-vacio
+      titulo="Todavía no tenés compras"
+      texto="Cuando compres entradas las vas a encontrar acá, con su código y su comprobante.">
+      <a class="btn btn-primario" routerLink="/peliculas">Ver la cartelera</a>
+    </app-vacio>
+  } @else {
+    <ul class="compras">
+      @for (compra of lista(); track compra.id) {
+        <li class="tarjeta compra anim-subir">
+          <div class="afiche" aria-hidden="true">
+            @if (aficheDe(compra); as imagen) {
+              <img [src]="imagen" [alt]="tituloDe(compra)" loading="lazy" />
+            } @else {
+              <span class="sin-afiche">{{ tituloDe(compra).charAt(0) }}</span>
+            }
+          </div>
+
+          <div class="datos">
+            <div class="fila-titulo">
+              <h2>{{ tituloDe(compra) }}</h2>
+
+              @switch (estadoDe(compra)) {
+                @case ('cancelada') {
+                  <span class="chip chip-peligro">Cancelada</span>
+                }
+                @case ('utilizada') {
+                  <span class="chip chip-usada">Entrada utilizada</span>
+                }
+                @default {
+                  <span class="chip chip-ok">Pagada</span>
+                }
+              }
+            </div>
+
+            <p class="funcion">{{ fechaFuncionDe(compra) }}</p>
+
+            <dl class="detalle">
+              <div>
+                <dt>Sala</dt>
+                <dd>{{ salaDe(compra) }}</dd>
+              </div>
+              <div>
+                <dt>Entradas</dt>
+                <dd>
+                  @if (entradasDe(compra) !== null) {
+                    {{ entradasDe(compra) }}
+                  } @else {
+                    —
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Total</dt>
+                <dd class="acento">{{ compra.total | precio }}</dd>
+              </div>
+              <div>
+                <dt>Código</dt>
+                <dd class="codigo">{{ compra.codigo }}</dd>
+              </div>
+            </dl>
+
+            <p class="comprada">Comprada el {{ fechaCompraDe(compra) }}</p>
+          </div>
+
+          <div class="acciones">
+            <a class="btn btn-secundario" [routerLink]="['/compra', compra.codigo]">Ver comprobante</a>
+
+            @if (puedeCancelar(compra)) {
+              <button
+                type="button"
+                class="btn btn-fantasma peligro"
+                [disabled]="cancelando()"
+                (click)="pedirCancelacion(compra)">
+                Cancelar compra
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+
+    <p class="nota">
+      Podés cancelar una compra hasta 2 horas antes de la función, siempre que la entrada no haya sido
+      utilizada. El importe vuelve como crédito en tu cuenta.
+    </p>
+  }
+</section>
+
+<app-confirmar
+  titulo="¿Cancelar esta compra?"
+  [texto]="textoConfirmacion()"
+  [(abierto)]="confirmando"
+  (confirmado)="confirmarCancelacion()" />

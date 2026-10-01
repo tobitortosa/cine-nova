@@ -1,0 +1,217 @@
+<div class="pagina contenedor">
+  @if (cargando()) {
+    <app-cargando texto="Buscando tu compra..." />
+  } @else if (resumen(); as r) {
+    <div class="marco">
+      <article class="ticket" [class.atenuado]="atenuada()">
+        <div class="ticket-contenido">
+          <header class="encabezado">
+            <div class="marca">
+              <span class="marca-nombre">CineNova</span>
+              <span class="marca-bajada">Entrada digital</span>
+            </div>
+
+            <div class="estados">
+              @if (cancelada()) {
+                <span class="chip chip-peligro">Cancelada</span>
+              } @else if (utilizada()) {
+                <span class="chip estado-usada">Ya utilizada</span>
+              } @else {
+                <span class="chip estado-valida">Válida</span>
+              }
+
+              @if (r.compra.productos_entregados) {
+                <span class="chip">Candy bar retirado</span>
+              }
+            </div>
+          </header>
+
+          <section class="obra">
+            <h1>{{ r.pelicula?.titulo ?? 'Función de cine' }}</h1>
+
+            <div class="etiquetas">
+              @if (r.funcion?.formato) {
+                <span class="chip chip-accent">{{ r.funcion?.formato }}</span>
+              }
+              <span class="chip">{{ idiomaFuncion() }}</span>
+              @if (r.pelicula?.duracion_min) {
+                <span class="chip">{{ r.pelicula?.duracion_min | duracion }}</span>
+              }
+              <span class="chip" [class.chip-peligro]="restriccion() > 0">
+                {{ restriccion() | restriccion }}
+              </span>
+            </div>
+          </section>
+
+          <section class="datos">
+            <div class="dato">
+              <span class="rotulo">Fecha</span>
+              <strong class="valor">{{ fechaFuncion() }}</strong>
+            </div>
+            <div class="dato">
+              <span class="rotulo">Hora</span>
+              <strong class="valor">{{ horaFuncion() }}</strong>
+            </div>
+            <div class="dato">
+              <span class="rotulo">Sala</span>
+              <strong class="valor">{{ r.sala ?? r.funcion?.sala?.nombre ?? 'A confirmar' }}</strong>
+            </div>
+          </section>
+
+          <section class="seccion">
+            <h2 class="titulo-seccion">Butacas</h2>
+
+            @if (r.butacas.length > 0) {
+              <div class="butacas">
+                @for (butaca of r.butacas; track butaca.etiqueta) {
+                  <span class="butaca" [class.vip]="butaca.tipo === 'vip'" [class.accesible]="butaca.tipo === 'accesible'">
+                    <span class="butaca-codigo">{{ butaca.etiqueta }}</span>
+                    @switch (butaca.tipo) {
+                      @case ('vip') {
+                        <span class="butaca-tipo">VIP</span>
+                      }
+                      @case ('accesible') {
+                        <span class="butaca-tipo">Accesible</span>
+                      }
+                    }
+                  </span>
+                }
+              </div>
+            } @else {
+              <p class="sin-datos">Esta compra no tiene butacas asociadas.</p>
+            }
+          </section>
+
+          @if (r.items.length > 0) {
+            <section class="seccion">
+              <h2 class="titulo-seccion">Candy bar</h2>
+
+              <ul class="items">
+                @for (item of r.items; track $index) {
+                  <li class="item">
+                    <span class="item-cantidad">{{ item.cantidad }}x</span>
+                    <span class="item-nombre">{{ item.nombre }}</span>
+                    <span class="item-precio">{{ item.cantidad * item.precio_unitario | precio }}</span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+
+          <section class="desglose">
+            <div class="linea">
+              <span>Subtotal</span>
+              <span>{{ r.compra.subtotal | precio }}</span>
+            </div>
+
+            @if (r.compra.descuento > 0) {
+              <div class="linea descuento">
+                <span>Descuento</span>
+                <span>- {{ r.compra.descuento | precio }}</span>
+              </div>
+            }
+
+            @if (r.compra.credito_usado > 0) {
+              <div class="linea descuento">
+                <span>Crédito usado</span>
+                <span>- {{ r.compra.credito_usado | precio }}</span>
+              </div>
+            }
+
+            <div class="linea total">
+              <span>Total</span>
+              <span>{{ r.compra.total | precio }}</span>
+            </div>
+
+            @if (r.compra.puntos_ganados > 0) {
+              <p class="puntos">Sumaste {{ r.compra.puntos_ganados }} puntos con esta compra.</p>
+            }
+          </section>
+        </div>
+
+        <div class="perforado" aria-hidden="true"></div>
+
+        <div class="ticket-contenido talon">
+          <section class="qr-caja">
+            @if (qr()) {
+              <img class="qr" [src]="qr()" alt="Código QR de la compra" />
+            } @else {
+              <div class="qr qr-vacio"></div>
+            }
+
+            <span class="qr-rotulo">Código de compra</span>
+            <p class="qr-codigo">{{ r.compra.codigo }}</p>
+
+            @if (emitida()) {
+              <p class="qr-fecha">Emitida el {{ emitida() }}</p>
+            }
+          </section>
+
+          @if (restriccion() > 0) {
+            <aside class="restriccion">
+              <span class="restriccion-marca">{{ restriccion() | restriccion }}</span>
+              <p>
+                Película con restricción de edad: los menores deben ingresar acompañados por
+                un adulto. Te pueden pedir el documento en la puerta de la sala.
+              </p>
+            </aside>
+          }
+
+          <aside class="aviso">
+            <p>
+              Con este mismo QR ingresás a la sala y retirás tu pedido del candy bar. Es de un
+              solo uso: una vez validado deja de estar disponible.
+            </p>
+          </aside>
+        </div>
+
+        @if (cancelada()) {
+          <span class="sello sello-cancelada" aria-hidden="true">Cancelada</span>
+        } @else if (utilizada()) {
+          <span class="sello sello-utilizada" aria-hidden="true">Utilizada</span>
+        }
+      </article>
+    </div>
+
+    <div class="acciones">
+      <button
+        type="button"
+        class="btn btn-primario"
+        [disabled]="descargando()"
+        (click)="descargar()"
+      >
+        @if (descargando()) {
+          Generando PDF...
+        } @else {
+          Descargar PDF
+        }
+      </button>
+
+      <a class="btn btn-secundario" routerLink="/peliculas">Ver la cartelera</a>
+      <a class="btn btn-fantasma" routerLink="/candy">Ir al candy bar</a>
+    </div>
+
+    @if (cancelada()) {
+      <p class="nota-estado peligro">
+        Esta compra fue cancelada. El código ya no sirve para ingresar a la sala ni para
+        retirar productos.
+      </p>
+    } @else if (utilizada()) {
+      <p class="nota-estado">
+        La entrada ya fue validada en la puerta de la sala. Guardá el comprobante como
+        respaldo de tu compra.
+      </p>
+    }
+  } @else {
+    <app-vacio
+      titulo="No encontramos esa compra"
+      texto="Revisá que el código esté bien escrito. Si llegaste desde un correo, probá abrir el enlace de nuevo."
+    >
+      @if (codigo()) {
+        <p class="codigo-buscado">Buscamos el código <strong>{{ codigo() }}</strong></p>
+      }
+      <a class="btn btn-primario" routerLink="/peliculas">Ver la cartelera</a>
+      <a class="btn btn-secundario" routerLink="/">Volver al inicio</a>
+    </app-vacio>
+  }
+</div>

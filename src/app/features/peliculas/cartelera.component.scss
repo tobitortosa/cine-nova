@@ -1,0 +1,356 @@
+:host {
+  display: block;
+}
+
+.pagina {
+  padding-block: 36px 72px;
+}
+
+.encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+
+.titulos h1 {
+  margin-bottom: 6px;
+}
+
+.sobretitulo {
+  margin: 0 0 6px;
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+}
+
+.bajada {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--c-text-soft);
+}
+
+.buscador {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(100%, 360px);
+}
+
+.lupa {
+  position: absolute;
+  left: 14px;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  color: var(--c-text-faint);
+  pointer-events: none;
+  transition: color var(--t-fast);
+}
+
+.lupa svg {
+  width: 100%;
+  height: 100%;
+}
+
+.entrada {
+  width: 100%;
+  padding: 12px 42px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+}
+
+.entrada::placeholder {
+  color: var(--c-text-faint);
+}
+
+.entrada::-webkit-search-cancel-button {
+  display: none;
+}
+
+.entrada:focus {
+  outline: none;
+  background: var(--c-surface-2);
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px rgb(245 180 60 / .14);
+}
+
+.buscador:focus-within .lupa {
+  color: var(--c-accent);
+}
+
+.borrar {
+  position: absolute;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--c-surface-3);
+  border: none;
+  border-radius: var(--r-full);
+  color: var(--c-text-soft);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+
+.borrar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.borrar:hover {
+  background: var(--c-danger);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.generos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 4px;
+  margin-bottom: 20px;
+}
+
+.filtro {
+  padding: 7px 15px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  color: var(--c-text-soft);
+  font-size: .84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast),
+              border-color var(--t-fast), transform var(--t-fast);
+}
+
+.filtro:hover {
+  color: var(--c-text);
+  border-color: var(--c-accent-deep);
+  transform: translateY(-1px);
+}
+
+.filtro.activo {
+  background: linear-gradient(135deg, var(--c-accent-soft), var(--c-accent));
+  border-color: transparent;
+  color: #14161d;
+  box-shadow: var(--sh-glow);
+}
+
+.contador {
+  margin: 0 0 18px;
+  font-size: .86rem;
+  font-weight: 600;
+  color: var(--c-text-soft);
+}
+
+.detalle-filtro {
+  color: var(--c-accent-soft);
+  font-weight: 500;
+}
+
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 24px 20px;
+}
+
+.molde .afiche {
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  border-radius: var(--r-lg);
+}
+
+.molde .linea {
+  height: 13px;
+  margin-top: 12px;
+}
+
+.molde .linea.corta {
+  width: 55%;
+  margin-top: 8px;
+}
+
+.ficha {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ficha .afiche {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  transition: transform var(--t-base), box-shadow var(--t-base), border-color var(--t-base);
+}
+
+.ficha .afiche img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--t-slow);
+}
+
+.sin-afiche {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--c-text-faint);
+}
+
+.sin-afiche svg {
+  width: 46px;
+  height: 46px;
+}
+
+.edad {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgb(10 11 16 / .78);
+  backdrop-filter: blur(6px);
+  color: var(--c-text);
+}
+
+.destacada {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  backdrop-filter: blur(6px);
+}
+
+.velo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: linear-gradient(to top, rgb(10 11 16 / .92), rgb(10 11 16 / 0) 55%);
+  opacity: 0;
+  transition: opacity var(--t-base);
+}
+
+.ver {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--c-accent-soft), var(--c-accent));
+  border-radius: var(--r-full);
+  color: #14161d;
+  font-size: .82rem;
+  font-weight: 700;
+  transform: translateY(8px);
+  transition: transform var(--t-base);
+}
+
+.ficha:hover .afiche {
+  transform: translateY(-6px);
+  border-color: var(--c-accent-deep);
+  box-shadow: var(--sh-lg);
+}
+
+.ficha:hover .afiche img {
+  transform: scale(1.06);
+}
+
+.ficha:hover .velo {
+  opacity: 1;
+}
+
+.ficha:hover .ver {
+  transform: none;
+}
+
+.ficha:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 4px;
+  border-radius: var(--r-lg);
+}
+
+.datos {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.titulo {
+  margin: 0;
+  font-size: .98rem;
+  line-height: 1.3;
+  transition: color var(--t-fast);
+}
+
+.ficha:hover .titulo {
+  color: var(--c-accent-soft);
+}
+
+.puntaje {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .8rem;
+  color: var(--c-text-soft);
+}
+
+.numero {
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.separador {
+  color: var(--c-text-faint);
+}
+
+.generos-ficha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+@media (max-width: 720px) {
+  .pagina {
+    padding-block: 24px 56px;
+  }
+
+  .encabezado {
+    align-items: stretch;
+  }
+
+  .buscador {
+    width: 100%;
+  }
+
+  .generos {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .generos::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filtro {
+    flex-shrink: 0;
+  }
+
+  .grilla {
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 18px 14px;
+  }
+}

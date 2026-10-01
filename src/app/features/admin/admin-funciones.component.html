@@ -1,0 +1,362 @@
+<section class="pagina">
+  <header class="encabezado">
+    <div class="titulos">
+      <h1>Funciones</h1>
+      <p>Programá funciones sueltas o series semanales. La sala la asigna el sistema.</p>
+    </div>
+
+    <button type="button" class="btn btn-primario" (click)="abrirPanel()">
+      <svg class="mas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      Nueva función
+    </button>
+  </header>
+
+  <div class="filtros">
+    <div class="campo">
+      <label for="filtro-pelicula">Película</label>
+      <select
+        id="filtro-pelicula"
+        #selectorPelicula
+        [value]="filtroPelicula()"
+        (change)="cambiarPelicula(selectorPelicula.value)">
+        <option value="">Todas las películas</option>
+        @for (pelicula of peliculas(); track pelicula.id) {
+          <option [value]="pelicula.id">{{ pelicula.titulo }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="campo">
+      <label for="filtro-desde">Desde</label>
+      <input
+        id="filtro-desde"
+        #campoDesde
+        type="date"
+        [value]="filtroDesde()"
+        (change)="cambiarDesde(campoDesde.value)" />
+    </div>
+
+    <div class="campo">
+      <label for="filtro-hasta">Hasta</label>
+      <input
+        id="filtro-hasta"
+        #campoHasta
+        type="date"
+        [value]="filtroHasta()"
+        (change)="cambiarHasta(campoHasta.value)" />
+    </div>
+
+    <button type="button" class="btn btn-secundario limpiar" (click)="limpiarFiltros()">
+      Limpiar filtros
+    </button>
+  </div>
+
+  @if (cargando()) {
+    <app-cargando texto="Cargando funciones..." />
+  } @else if (grupos().length === 0) {
+    <app-vacio
+      titulo="No hay funciones programadas"
+      texto="Ajustá los filtros o creá una función nueva para empezar a vender entradas.">
+      <button type="button" class="btn btn-primario" (click)="abrirPanel()">Nueva función</button>
+    </app-vacio>
+  } @else {
+    <p class="resumen">{{ lista().length }} funciones en {{ grupos().length }} días</p>
+
+    @for (grupo of grupos(); track grupo.clave) {
+      <section class="dia anim-subir">
+        <header class="dia-cabecera">
+          <h2>{{ grupo.etiqueta }}</h2>
+          <span class="chip">{{ grupo.funciones.length }} funciones</span>
+        </header>
+
+        <div class="tabla-caja">
+          <table class="tabla">
+            <thead>
+              <tr>
+                <th>Película</th>
+                <th>Hora</th>
+                <th>Sala</th>
+                <th>Formato</th>
+                <th>Idioma</th>
+                <th class="numero">Precio</th>
+                <th class="numero">VIP</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (funcion of grupo.funciones; track funcion.id) {
+                <tr>
+                  <td class="pelicula" [attr.data-rotulo]="'Película'">
+                    {{ funcion.pelicula?.titulo ?? 'Sin película' }}
+                  </td>
+                  <td class="hora" [attr.data-rotulo]="'Hora'">{{ horaDe(funcion.inicio) }}</td>
+                  <td [attr.data-rotulo]="'Sala'">
+                    <span class="sala">{{ funcion.sala?.nombre ?? 'Sin sala' }}</span>
+                  </td>
+                  <td [attr.data-rotulo]="'Formato'">
+                    <span class="chip chip-accent">{{ funcion.formato }}</span>
+                  </td>
+                  <td [attr.data-rotulo]="'Idioma'">{{ idiomaLegible(funcion.idioma) }}</td>
+                  <td class="numero" [attr.data-rotulo]="'Precio'">{{ funcion.precio_base | precio }}</td>
+                  <td class="numero" [attr.data-rotulo]="'VIP'">{{ funcion.precio_vip | precio }}</td>
+                  <td class="final">
+                    <button type="button" class="borrar" aria-label="Eliminar función" (click)="pedirBaja(funcion)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+
+  @if (panelAbierto()) {
+    <div class="overlay anim-aparecer" (click)="cerrarPanel()"></div>
+
+    <aside class="panel" role="dialog" aria-modal="true" aria-label="Formulario de funciones">
+      <header class="panel-cabecera">
+        <h2>Nueva función</h2>
+        <button type="button" class="cerrar" aria-label="Cerrar panel" (click)="cerrarPanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+
+      <form class="panel-cuerpo" [formGroup]="formulario" (ngSubmit)="guardar()">
+        <div class="desplazable">
+          <div class="nota">
+            <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v6M12 7.5v.01" />
+            </svg>
+            <div class="texto">
+              <strong>La sala la asigna el sistema automáticamente.</strong>
+              <span>
+                No elegís sala: la base busca una libre para el horario pedido y garantiza
+                <strong>media hora libre</strong> entre funciones de la misma sala para limpieza y
+                recambio de público. Si no queda ninguna sala libre, la función no se crea.
+              </span>
+            </div>
+          </div>
+
+          @if (errorPanel()) {
+            <div class="alerta" [class.alerta-sala]="errorDeSalas()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+                <path d="M12 9v4.5M12 17v.01M10.3 3.9 2.6 17.4A2 2 0 0 0 4.3 20.4h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+              </svg>
+              <div>
+                <strong>{{ errorPanel() }}</strong>
+                @if (errorDeSalas()) {
+                  <span class="pista">
+                    Probá con otro horario, con otro día, o cargá una sala nueva desde la sección Salas.
+                  </span>
+                }
+              </div>
+            </div>
+          }
+
+          @if (erroresSerie().length > 0) {
+            <div class="detalle-errores">
+              <span class="rotulo">Funciones que no se pudieron crear</span>
+              <ul>
+                @for (error of erroresSerie(); track $index) {
+                  <li>{{ error }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          <div class="pestanias" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              class="pestania"
+              [class.activa]="modo() === 'unica'"
+              [attr.aria-selected]="modo() === 'unica'"
+              (click)="elegirModo('unica')">
+              Función única
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="pestania"
+              [class.activa]="modo() === 'serie'"
+              [attr.aria-selected]="modo() === 'serie'"
+              (click)="elegirModo('serie')">
+              Serie semanal
+            </button>
+          </div>
+
+          <div class="campo">
+            <label for="pelicula">Película</label>
+            <select id="pelicula" formControlName="peliculaId">
+              <option value="">Elegí una película</option>
+              @for (pelicula of peliculas(); track pelicula.id) {
+                <option [value]="pelicula.id">{{ pelicula.titulo }}</option>
+              }
+            </select>
+            @if (formulario.controls.peliculaId.touched && formulario.controls.peliculaId.invalid) {
+              <span class="error-campo">Elegí la película de la función.</span>
+            }
+          </div>
+
+          @switch (modo()) {
+            @case ('unica') {
+              <div class="bloque">
+                <app-selector-fecha-hora
+                  etiqueta="Fecha y hora de la función"
+                  [minimo]="minimoFecha"
+                  [valor]="inicio()"
+                  (valorChange)="cambiarInicio($event)" />
+              </div>
+            }
+            @case ('serie') {
+              <div class="bloque">
+                <span class="rotulo">Días de la semana</span>
+                <div class="dias-botones">
+                  @for (dia of diasSemana; track dia.valor) {
+                    <button
+                      type="button"
+                      class="dia-boton"
+                      [class.activo]="tieneDia(dia.valor)"
+                      (click)="alternarDia(dia.valor)">
+                      {{ dia.etiqueta }}
+                    </button>
+                  }
+                </div>
+                <span class="ayuda">Tocá los días en los que querés repetir la función.</span>
+              </div>
+
+              <div class="bloque">
+                <span class="rotulo">Horario de la serie</span>
+                <div class="reloj">
+                  <div class="reloj-bloque">
+                    <span class="sub">Hora</span>
+                    <div class="grilla-horas">
+                      @for (hora of horas; track hora) {
+                        <button
+                          type="button"
+                          class="ficha"
+                          [class.activa]="hora === horaElegida()"
+                          (click)="elegirHora(hora)">
+                          {{ dosDigitos(hora) }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="reloj-bloque">
+                    <span class="sub">Minutos</span>
+                    <div class="grilla-minutos">
+                      @for (minuto of minutos; track minuto) {
+                        <button
+                          type="button"
+                          class="ficha"
+                          [class.activa]="minuto === minutoElegido()"
+                          (click)="elegirMinuto(minuto)">
+                          {{ dosDigitos(minuto) }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                </div>
+                <p class="elegido">Todas las funciones arrancan a las <strong>{{ horaSerie() }} h</strong></p>
+              </div>
+
+              <div class="bloque">
+                <span class="rotulo">Cantidad de semanas</span>
+                <div class="semanas">
+                  @for (cantidad of semanasPosibles; track cantidad) {
+                    <button
+                      type="button"
+                      class="ficha ancha"
+                      [class.activa]="semanas() === cantidad"
+                      (click)="elegirSemanas(cantidad)">
+                      {{ cantidad }}
+                    </button>
+                  }
+                </div>
+                <span class="ayuda">Se repite la grilla durante {{ semanas() }} semanas desde esta semana.</span>
+              </div>
+            }
+          }
+
+          <div class="bloque">
+            <span class="rotulo">Formato</span>
+            <div class="opciones">
+              @for (valor of formatos; track valor) {
+                <button
+                  type="button"
+                  class="opcion"
+                  [class.activa]="formato() === valor"
+                  (click)="elegirFormato(valor)">
+                  {{ valor }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="bloque">
+            <span class="rotulo">Idioma</span>
+            <div class="opciones">
+              @for (valor of idiomas; track valor) {
+                <button
+                  type="button"
+                  class="opcion"
+                  [class.activa]="idioma() === valor"
+                  (click)="elegirIdioma(valor)">
+                  {{ idiomaLegible(valor) }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="par">
+            <div class="campo">
+              <label for="precio">Precio base</label>
+              <input id="precio" type="number" min="1" step="100" formControlName="precio" />
+              @if (formulario.controls.precio.touched && formulario.controls.precio.invalid) {
+                <span class="error-campo">El precio base tiene que ser mayor a 0.</span>
+              }
+            </div>
+
+            <div class="campo">
+              <label for="precio-vip">Precio VIP</label>
+              <input id="precio-vip" type="number" min="0" step="100" formControlName="precioVip" />
+              <span class="ayuda">Si lo dejás en 0, la base lo calcula como 1,5 veces el precio base.</span>
+            </div>
+          </div>
+        </div>
+
+        <footer class="panel-pie">
+          <button type="button" class="btn btn-secundario" [disabled]="guardando()" (click)="cerrarPanel()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primario" [disabled]="guardando()">
+            @if (guardando()) {
+              Programando...
+            } @else if (modo() === 'serie') {
+              Crear serie
+            } @else {
+              Crear función
+            }
+          </button>
+        </footer>
+      </form>
+    </aside>
+  }
+
+  <app-confirmar
+    [(abierto)]="confirmaAbierta"
+    titulo="¿Eliminar la función?"
+    [texto]="textoConfirmacion()"
+    (confirmado)="eliminar()" />
+</section>

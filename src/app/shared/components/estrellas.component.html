@@ -1,0 +1,33 @@
+<div
+  class="estrellas"
+  [class.editable]="editable()"
+  (mouseleave)="soltar()"
+  [attr.aria-label]="'Puntaje ' + valor() + ' de 5'">
+  @for (indice of indices; track indice) {
+    <button
+      type="button"
+      class="estrella"
+      [disabled]="!editable()"
+      [style.width.px]="tamanio()"
+      [style.height.px]="tamanio()"
+      [attr.aria-label]="indice + ' de 5'"
+      (mouseenter)="previsualizar(indice)"
+      (focus)="previsualizar(indice)"
+      (blur)="soltar()"
+      (click)="elegir(indice)">
+      <svg class="trazo" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2.6l2.9 5.88 6.5.95-4.7 4.58 1.11 6.47L12 17.43l-5.81 3.05 1.11-6.47-4.7-4.58 6.5-.95z" />
+      </svg>
+      <span class="relleno" [style.width.%]="relleno(indice)">
+        <svg
+          class="lleno"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          [style.width.px]="tamanio()"
+          [style.height.px]="tamanio()">
+          <path d="M12 2.6l2.9 5.88 6.5.95-4.7 4.58 1.11 6.47L12 17.43l-5.81 3.05 1.11-6.47-4.7-4.58 6.5-.95z" />
+        </svg>
+      </span>
+    </button>
+  }
+</div>

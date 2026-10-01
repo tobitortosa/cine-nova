@@ -1,0 +1,269 @@
+<header class="cabecera">
+  <div class="titulos">
+    <h1>Panel de control</h1>
+    <p class="bajada">Un vistazo rápido a cómo viene funcionando el cine hoy.</p>
+  </div>
+
+  <button class="btn btn-secundario" type="button" [disabled]="cargando()" (click)="recargar()">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0-2.1 6" />
+      <path d="M20 5v6h-6" />
+    </svg>
+    <span>Actualizar</span>
+  </button>
+</header>
+
+@if (cargando()) {
+  <section class="metricas">
+    @for (hueco of huecos; track hueco) {
+      <div class="metrica skeleton metrica-hueca"></div>
+    }
+  </section>
+  <section class="columnas">
+    <div class="skeleton bloque-hueco"></div>
+    <div class="skeleton bloque-hueco"></div>
+  </section>
+} @else {
+  <section class="metricas">
+    @for (metrica of metricas(); track metrica.clave) {
+      <article class="metrica anim-subir">
+        <span class="icono" aria-hidden="true">
+          @switch (metrica.clave) {
+            @case ('facturado_hoy') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+                <circle cx="12" cy="12" r="2.6" />
+                <path d="M6 9.6v4.8M18 9.6v4.8" />
+              </svg>
+            }
+            @case ('entradas_hoy') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9.2V7.8A1.3 1.3 0 0 1 4.3 6.5h15.4A1.3 1.3 0 0 1 21 7.8v1.4a2.2 2.2 0 0 0 0 5.6v1.4a1.3 1.3 0 0 1-1.3 1.3H4.3A1.3 1.3 0 0 1 3 16.2v-1.4a2.2 2.2 0 0 0 0-5.6Z" />
+                <path d="M14.6 7.6v8.8" stroke-dasharray="2.2 2.4" />
+              </svg>
+            }
+            @case ('facturado_mes') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.5 19.2h17" />
+                <path d="M6 15.4l4-4.6 3.5 3 5.2-6.2" />
+                <path d="M15.2 7.6h3.9v3.9" />
+              </svg>
+            }
+            @case ('usuarios') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8.2" r="3.5" />
+                <path d="M4.8 19.4c.7-3.7 3.7-5.7 7.2-5.7s6.5 2 7.2 5.7" />
+              </svg>
+            }
+            @case ('peliculas') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                <path d="M7 5v14M17 5v14M2.5 12h19" />
+              </svg>
+            }
+            @default {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="8.4" />
+                <path d="M12 7.4V12l3.2 1.9" />
+              </svg>
+            }
+          }
+        </span>
+
+        <span class="numero">
+          @if (metrica.moneda) {
+            {{ metrica.valor | precio }}
+          } @else {
+            {{ miles(metrica.valor) }}
+          }
+        </span>
+        <span class="etiqueta">{{ metrica.etiqueta }}</span>
+      </article>
+    }
+  </section>
+
+  <section class="columnas">
+    <article class="tarjeta bloque">
+      <header class="bloque-cab">
+        <div>
+          <h2>Facturación de los últimos 14 días</h2>
+          <p class="nota">Total del período: <strong>{{ totalQuincena() | precio }}</strong></p>
+        </div>
+        <span class="chip chip-accent">Pico {{ picoFacturacion() | precio }}</span>
+      </header>
+
+      @if (barras().length === 0) {
+        <app-vacio titulo="Sin datos" texto="Todavía no hay facturación para graficar." />
+      } @else {
+        <div class="grafico" (mouseleave)="soltar()">
+          <svg viewBox="0 0 560 200" role="img" aria-label="Facturación diaria de los últimos 14 días">
+            <defs>
+              <linearGradient id="gradPanelFacturacion" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffd27f" />
+                <stop offset="100%" stop-color="#c98a1c" />
+              </linearGradient>
+            </defs>
+
+            @for (guia of guias; track guia) {
+              <line class="guia" x1="12" [attr.y1]="guia" x2="548" [attr.y2]="guia" />
+            }
+            <line class="eje" x1="12" y1="164" x2="548" y2="164" />
+
+            @for (barra of barras(); track barra.clave; let i = $index) {
+              <g class="columna" [class.activa]="barraActiva() === i" (mouseenter)="resaltar(i)">
+                <rect class="zona" [attr.x]="barra.zonaX" y="16" [attr.width]="barra.zonaAncho" height="148" />
+                <rect class="barra" fill="url(#gradPanelFacturacion)" [attr.x]="barra.x" [attr.y]="barra.y" [attr.width]="barra.ancho" [attr.height]="barra.alto" rx="3" />
+                <text class="marca-eje" [attr.x]="barra.centro" y="181" text-anchor="middle">{{ barra.etiqueta }}</text>
+              </g>
+            }
+          </svg>
+
+          @if (barraSeleccionada(); as elegida) {
+            <div class="globo" [style.left.%]="elegida.porcentajeX">
+              <span class="globo-dia">{{ elegida.dia }}</span>
+              <span class="globo-monto">{{ elegida.monto | precio }}</span>
+            </div>
+          }
+        </div>
+      }
+    </article>
+
+    <article class="tarjeta bloque">
+      <header class="bloque-cab">
+        <div>
+          <h2>Top 5 del candy bar</h2>
+          <p class="nota">Ordenado por unidades vendidas</p>
+        </div>
+      </header>
+
+      @if (ranking().length === 0) {
+        <app-vacio titulo="Sin ventas" texto="Todavía no se vendieron productos del candy bar." />
+      } @else {
+        <ul class="ranking">
+          @for (producto of ranking(); track producto.nombre; let i = $index) {
+            <li class="fila-ranking">
+              <span class="puesto" [class.lider]="i === 0">{{ i + 1 }}</span>
+              <div class="datos">
+                <div class="linea">
+                  <span class="nombre">{{ producto.nombre }}</span>
+                  <span class="unidades">{{ miles(producto.unidades) }} u.</span>
+                </div>
+                <div class="riel">
+                  <span class="relleno" [style.width.%]="producto.porcentaje"></span>
+                </div>
+                <span class="facturado">{{ producto.facturado | precio }}</span>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </article>
+  </section>
+
+  <section class="tarjeta bloque">
+    <header class="bloque-cab">
+      <div>
+        <h2>Última actividad</h2>
+        <p class="nota">Los últimos ocho movimientos del equipo</p>
+      </div>
+      <a class="enlace" routerLink="/admin/log">Ver todo el registro</a>
+    </header>
+
+    <ul class="actividad">
+      @for (registro of registros(); track registro.id) {
+        <li class="registro">
+          <span
+            class="chip"
+            [class.chip-ok]="registro.color === 'ok'"
+            [class.chip-peligro]="registro.color === 'peligro'"
+            [class.chip-accent]="registro.color === 'ambar'"
+          >{{ registro.etiqueta }}</span>
+
+          <span class="entidad">
+            {{ registro.entidad }}
+            @if (registro.entidadId) {
+              <span class="identificador">#{{ registro.entidadId }}</span>
+            }
+          </span>
+
+          <span class="autor">{{ registro.email }}</span>
+          <span class="momento">{{ registro.creado | desde }}</span>
+        </li>
+      } @empty {
+        <li class="sin-actividad">
+          <app-vacio titulo="Sin movimientos" texto="Todavía no hay actividad registrada en el sistema." />
+        </li>
+      }
+    </ul>
+  </section>
+
+  <section class="accesos">
+    <h2 class="titulo-seccion">Accesos rápidos</h2>
+    <div class="grilla-accesos">
+      @for (acceso of accesos; track acceso.ruta) {
+        <a class="acceso" [routerLink]="acceso.ruta">
+          <span class="acceso-icono" aria-hidden="true">
+            @switch (acceso.ruta) {
+              @case ('/admin/peliculas') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                  <path d="M7 5v14M17 5v14" />
+                </svg>
+              }
+              @case ('/admin/funciones') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="16" rx="2.5" />
+                  <path d="M3 10h18M8 3v4M16 3v4" />
+                </svg>
+              }
+              @case ('/admin/salas') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19v-4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4" />
+                  <path d="M6.5 13V8.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2V13" />
+                  <path d="M4 19h16" />
+                </svg>
+              }
+              @case ('/admin/candy') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 9h12l-1.3 10.2a1.6 1.6 0 0 1-1.6 1.4H8.9a1.6 1.6 0 0 1-1.6-1.4Z" />
+                  <path d="M8.4 9a2.4 2.4 0 1 1 2.2-3.3A2.6 2.6 0 0 1 15.6 6 2.4 2.4 0 1 1 16 9" />
+                </svg>
+              }
+              @case ('/admin/promociones') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20.3 12.6 12.6 20.3a1.8 1.8 0 0 1-2.6 0l-6.3-6.3a1.8 1.8 0 0 1-.5-1.3V5.1A1.8 1.8 0 0 1 5 3.3h7.6a1.8 1.8 0 0 1 1.3.5l6.4 6.4a1.8 1.8 0 0 1 0 2.4Z" />
+                  <circle cx="8.2" cy="8.2" r="1.3" />
+                </svg>
+              }
+              @case ('/admin/usuarios') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8.2" r="3.5" />
+                  <path d="M4.8 19.4c.7-3.7 3.7-5.7 7.2-5.7s6.5 2 7.2 5.7" />
+                </svg>
+              }
+              @case ('/admin/reportes') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3.5 19.5h17" />
+                  <path d="M7 19.5v-7M12 19.5V5.5M17 19.5v-10" />
+                </svg>
+              }
+              @default {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M8.5 7h11M8.5 12h11M8.5 17h11" />
+                  <path d="M4.5 7h.01M4.5 12h.01M4.5 17h.01" />
+                </svg>
+              }
+            }
+          </span>
+          <span class="acceso-textos">
+            <strong>{{ acceso.titulo }}</strong>
+            <small>{{ acceso.texto }}</small>
+          </span>
+          <svg class="acceso-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+      }
+    </div>
+  </section>
+}
