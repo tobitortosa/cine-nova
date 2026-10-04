@@ -32,7 +32,7 @@
       </article>
     </div>
 
-    @if (mostrarCupon()) {
+    @if (mostrarCupon() && cupon(); as bienvenida) {
       <aside class="cupon anim-escalar">
         <span class="sello" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -43,13 +43,13 @@
 
         <div class="texto">
           <h2>Tenés tu cupón de bienvenida sin usar</h2>
-          <p>Aplicá el código en el paso de pago y llevate un <strong>20 % de descuento</strong> en tu primera compra.</p>
+          <p>Aplicá el código en el paso de pago y llevate un <strong>{{ bienvenida.porcentaje }} % de descuento</strong> en tu primera compra.</p>
         </div>
 
         <div class="codigo">
           <span class="rotulo">Código</span>
-          <strong>BIENVENIDA</strong>
-          <span class="porcentaje">20 %</span>
+          <strong>{{ bienvenida.codigo }}</strong>
+          <span class="porcentaje">{{ bienvenida.porcentaje }} %</span>
         </div>
       </aside>
     }
@@ -83,11 +83,25 @@
           }
         </div>
 
-        <div class="campo">
+        <div class="campo ancho">
           <label for="fecha_nacimiento">Fecha de nacimiento</label>
-          <input id="fecha_nacimiento" type="date" formControlName="fecha_nacimiento" />
-          @if (formulario.controls.fecha_nacimiento.touched && formulario.controls.fecha_nacimiento.invalid) {
+          <app-selector-fecha
+            id="fecha_nacimiento"
+            modo="nacimiento"
+            etiqueta="Fecha de nacimiento"
+            formControlName="fecha_nacimiento"
+            [maximo]="hoy" />
+          @if (fechaBloqueada()) {
+            <span class="ayuda">
+              La fecha de nacimiento no se puede cambiar una vez cargada, porque define las películas
+              con restricción de edad y los cupones por edad.
+            </span>
+          } @else if (formulario.controls.fecha_nacimiento.touched && formulario.controls.fecha_nacimiento.hasError('futura')) {
+            <span class="error-campo">La fecha de nacimiento no puede ser futura.</span>
+          } @else if (formulario.controls.fecha_nacimiento.touched && formulario.controls.fecha_nacimiento.invalid) {
             <span class="error-campo">Indicá tu fecha de nacimiento.</span>
+          } @else {
+            <span class="ayuda">Revisala bien: una vez guardada no se puede cambiar.</span>
           }
         </div>
 
@@ -119,9 +133,9 @@
 
         <div class="campo">
           <label for="dias_vacaciones">Días de vacaciones</label>
-          <input id="dias_vacaciones" type="number" min="0" max="365" formControlName="dias_vacaciones" />
+          <input id="dias_vacaciones" type="number" min="0" max="365" step="1" inputmode="numeric" formControlName="dias_vacaciones" />
           @if (formulario.controls.dias_vacaciones.touched && formulario.controls.dias_vacaciones.invalid) {
-            <span class="error-campo">Poné un número entre 0 y 365.</span>
+            <span class="error-campo">Poné un número entero entre 0 y 365.</span>
           }
         </div>
       </div>
@@ -143,6 +157,24 @@
         </button>
       </footer>
     </form>
+  } @else if (!logueado()) {
+    <div class="tarjeta aviso anim-escalar" role="status">
+      <h2>Tu sesión se cerró</h2>
+      <p>Volvé a ingresar para ver y editar los datos de tu cuenta.</p>
+      <a class="btn btn-primario" routerLink="/auth/login" [queryParams]="volverACuenta">Ingresar de nuevo</a>
+    </div>
+  } @else if (errorPerfil()) {
+    <div class="tarjeta aviso aviso-error anim-escalar" role="alert">
+      <h2>No pudimos cargar tu perfil</h2>
+      <p>{{ errorPerfil() }}</p>
+      <button type="button" class="btn btn-secundario" [disabled]="reintentando()" (click)="reintentar()">
+        @if (reintentando()) {
+          Reintentando...
+        } @else {
+          Reintentar
+        }
+      </button>
+    </div>
   } @else {
     <app-cargando texto="Cargando tu perfil..." />
   }

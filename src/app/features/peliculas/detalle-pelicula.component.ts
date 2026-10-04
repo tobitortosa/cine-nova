@@ -14,7 +14,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Title } from '@angular/platform-browser';
 import { PeliculasService } from '../../core/services/peliculas.service';
 import { FuncionesService } from '../../core/services/funciones.service';
-import { ReseniasService } from '../../core/services/resenias.service';
+import { LARGO_MAXIMO_RESENIA, ReseniasService } from '../../core/services/resenias.service';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { Funcion, Pelicula, Resenia } from '../../core/models/modelos';
@@ -28,11 +28,14 @@ import { VacioComponent } from '../../shared/components/vacio.component';
 import {
   DIAS_PREVENTA,
   finDePreventa,
+  hoyLocal,
   preventaVigente,
   sumarDias,
   tienePreventa,
   ventaAbierta,
 } from '../../shared/utils/ventas';
+
+const TITULO_NO_ENCONTRADA = 'Película no encontrada · CineNova';
 
 interface GrupoFunciones {
   clave: string;
@@ -40,8 +43,6 @@ interface GrupoFunciones {
   fecha: string;
   funciones: Funcion[];
 }
-
-const LARGO_MAXIMO = 280;
 
 @Component({
   selector: 'app-detalle-pelicula',
@@ -82,12 +83,13 @@ export class DetallePeliculaComponent {
   readonly guardando = signal(false);
   readonly puntaje = signal(0);
   readonly largo = signal(0);
+  readonly huboFunciones = signal(false);
 
-  readonly maximo = LARGO_MAXIMO;
+  readonly maximo = LARGO_MAXIMO_RESENIA;
 
   readonly formulario = this.fb.nonNullable.group({
     estrellas: [0, [Validators.required, Validators.min(1)]],
-    comentario: ['', [Validators.maxLength(LARGO_MAXIMO)]],
+    comentario: ['', [Validators.maxLength(LARGO_MAXIMO_RESENIA)]],
   });
 
   readonly promedio = computed(() => {
@@ -100,6 +102,18 @@ export class DetallePeliculaComponent {
   readonly totalResenias = computed(() => this.resenias().length);
 
   readonly miUsuario = computed(() => this.auth.perfil()?.id ?? '');
+
+  readonly estrenada = computed(() => {
+    const pelicula = this.pelicula();
+    if (!pelicula) return false;
+    if (pelicula.en_cartelera || this.huboFunciones()) return true;
+    const estreno = pelicula.fecha_estreno?.slice(0, 10);
+    return !!estreno && estreno <= hoyLocal();
+  });
+
+  readonly volverAPelicula = computed(() => ({
+    volverA: `/peliculas/${this.pelicula()?.id ?? this.id()}`,
+  }));
 
   readonly ventaHabilitada = computed(() => ventaAbierta(this.pelicula()));
 
@@ -213,8 +227,10 @@ export class DetallePeliculaComponent {
     this.pelicula.set(null);
     this.funciones.set([]);
     this.resenias.set([]);
+    this.huboFunciones.set(false);
 
     if (!Number.isFinite(id) || id <= 0) {
+      this.titulo.setTitle(TITULO_NO_ENCONTRADA);
       this.cargando.set(false);
       return;
     }
@@ -224,6 +240,7 @@ export class DetallePeliculaComponent {
       this.pelicula.set(pelicula);
 
       if (!pelicula) {
+        this.titulo.setTitle(TITULO_NO_ENCONTRADA);
         this.cargando.set(false);
         return;
       }
@@ -232,6 +249,8 @@ export class DetallePeliculaComponent {
 
       const funciones = await this.funcionesServicio.porPelicula(id);
       this.funciones.set(funciones);
+
+      if (!this.estrenada()) this.huboFunciones.set(await this.funcionesServicio.empezoAlguna(id));
 
       await this.traerResenias(id);
     } catch (e) {

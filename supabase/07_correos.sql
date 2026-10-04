@@ -83,6 +83,8 @@ returns text language sql immutable as $$
   || '</td></tr></table></td></tr></table></body></html>';
 $$;
 
+drop function if exists enviar_correo(text, text, text, text);
+
 create or replace function enviar_correo(
   p_destinatario text, p_asunto text, p_html text, p_motivo text)
 returns void language plpgsql security definer

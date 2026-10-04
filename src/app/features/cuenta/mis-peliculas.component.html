@@ -27,11 +27,17 @@
     </app-vacio>
   } @else {
     <p class="resumen-linea">
-      Viste <strong>{{ lista().length }}</strong>
+      Fuiste a <strong>{{ lista().length }}</strong>
       @if (lista().length === 1) {
         función
       } @else {
         funciones
+      }
+      de <strong>{{ peliculasDistintas() }}</strong>
+      @if (peliculasDistintas() === 1) {
+        película
+      } @else {
+        películas
       }
       y calificaste <strong>{{ calificadas() }}</strong>.
     </p>
@@ -117,7 +123,10 @@
             id="comentario"
             rows="4"
             formControlName="comentario"
-            placeholder="Contanos qué te pareció (opcional)"></textarea>
+            [attr.maxlength]="maximo"
+            placeholder="Contanos qué te pareció (opcional)"
+            (input)="alEscribirComentario($event)"></textarea>
+          <span class="contador" [class.al-limite]="largo() >= maximo">{{ largo() }}/{{ maximo }}</span>
         </div>
 
         <div class="acciones">

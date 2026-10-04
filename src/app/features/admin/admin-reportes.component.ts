@@ -5,7 +5,9 @@ import { NotificacionesService } from '../../core/services/notificaciones.servic
 import { ReportesService } from '../../core/services/reportes.service';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
+import { MESES } from '../../shared/utils/calendario';
 
 type Agrupacion = 'semana' | 'mes';
 type Atajo = 'hoy' | 'semana' | 'mes';
@@ -42,6 +44,7 @@ interface BarraVista {
 interface GrupoVistas {
   periodo: string;
   titulo: string;
+  orden: number;
   filas: BarraVista[];
 }
 
@@ -63,7 +66,7 @@ function aFecha(iso: string): Date {
 
 @Component({
   selector: 'app-admin-reportes',
-  imports: [ReactiveFormsModule, CargandoComponent, VacioComponent, PrecioPipe],
+  imports: [ReactiveFormsModule, CargandoComponent, VacioComponent, SelectorFechaComponent, PrecioPipe],
   templateUrl: './admin-reportes.component.html',
   styleUrl: './admin-reportes.component.scss',
 })
@@ -81,6 +84,7 @@ export class AdminReportesComponent implements OnInit {
   readonly vistas = signal<PeliculaVista[]>([]);
   readonly productos = signal<TopProducto[]>([]);
   readonly agrupacion = signal<Agrupacion>('semana');
+  readonly agrupacionCargada = signal<Agrupacion>('semana');
   readonly rango = signal<{ desde: string; hasta: string }>({ desde: '', hasta: '' });
   readonly generando = signal(false);
   readonly generado = signal(false);
@@ -154,18 +158,26 @@ export class AdminReportesComponent implements OnInit {
       mapa.set(fila.periodo, lista);
     }
 
-    return Array.from(mapa.entries()).map(([periodo, filas]) => {
-      const maximo = Math.max(...filas.map((fila) => fila.vistas), 1);
-      return {
-        periodo,
-        titulo: this.tituloPeriodo(periodo),
-        filas: filas.map((fila) => ({
-          titulo: fila.titulo,
-          vistas: fila.vistas,
-          porcentaje: Math.max(6, (fila.vistas / maximo) * 100),
-        })),
-      };
-    });
+    const agrupacion = this.agrupacionCargada();
+
+    return Array.from(mapa.entries())
+      .map(([periodo, filas], indice) => {
+        const maximo = Math.max(...filas.map((fila) => fila.vistas), 1);
+        const inicio = this.inicioDePeriodo(periodo, agrupacion);
+        return {
+          periodo,
+          titulo: this.tituloPeriodo(periodo, inicio, agrupacion),
+          orden: inicio ? inicio.getTime() : -indice,
+          filas: [...filas]
+            .sort((a, b) => b.vistas - a.vistas)
+            .map((fila) => ({
+              titulo: fila.titulo,
+              vistas: fila.vistas,
+              porcentaje: Math.max(6, (fila.vistas / maximo) * 100),
+            })),
+        };
+      })
+      .sort((a, b) => b.orden - a.orden);
   });
 
   readonly masVendido = computed<TopProducto | null>(() => this.productos()[0] ?? null);
@@ -282,14 +294,21 @@ export class AdminReportesComponent implements OnInit {
   private async cargarVistas(): Promise<void> {
     this.cargandoVistas.set(true);
 
+    const agrupacion = this.agrupacion();
+
     try {
-      this.vistas.set(await this.reportes.masVistas(this.agrupacion()));
+      const vistas = await this.reportes.masVistas(agrupacion);
+      if (agrupacion !== this.agrupacion()) return;
+      this.agrupacionCargada.set(agrupacion);
+      this.vistas.set(vistas);
     } catch (error) {
       this.avisos.error(
         error instanceof Error ? error.message : 'No se pudieron cargar las películas más vistas',
       );
     } finally {
-      this.cargandoVistas.set(false);
+      if (agrupacion === this.agrupacion()) {
+        this.cargandoVistas.set(false);
+      }
     }
   }
 
@@ -318,19 +337,53 @@ export class AdminReportesComponent implements OnInit {
     return `${texto.charAt(0).toUpperCase()}${texto.slice(1)}`;
   }
 
-  private tituloPeriodo(periodo: string): string {
+  private inicioDePeriodo(periodo: string, agrupacion: Agrupacion): Date | null {
     const texto = (periodo ?? '').trim();
-    if (!texto) return 'Período';
 
-    if (this.agrupacion() === 'mes') {
-      const fecha = aFecha(texto.length === 7 ? `${texto}-01` : texto);
-      if (Number.isNaN(fecha.getTime())) return texto;
-      const nombre = fecha.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
-      return `${nombre.charAt(0).toUpperCase()}${nombre.slice(1)}`;
+    const iso = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(texto);
+    if (iso) {
+      return this.fechaValida(Number(iso[1]), Number(iso[2]), iso[3] ? Number(iso[3]) : 1);
     }
 
-    const fecha = aFecha(texto);
-    if (Number.isNaN(fecha.getTime())) return texto;
-    return `Semana del ${this.fechaCorta(texto)}`;
+    const mesAnio = /^(\d{1,2})\/(\d{4})$/.exec(texto);
+    if (mesAnio) {
+      return this.fechaValida(Number(mesAnio[2]), Number(mesAnio[1]), 1);
+    }
+
+    const diaMes = /^(\d{1,2})\/(\d{1,2})$/.exec(texto);
+    if (diaMes && agrupacion === 'semana') {
+      const hoy = new Date();
+      const dia = Number(diaMes[1]);
+      const mes = Number(diaMes[2]);
+      const esteAnio = this.fechaValida(hoy.getFullYear(), mes, dia);
+      if (!esteAnio) return null;
+      const limite = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 7);
+      return esteAnio.getTime() > limite.getTime()
+        ? this.fechaValida(hoy.getFullYear() - 1, mes, dia)
+        : esteAnio;
+    }
+
+    return null;
+  }
+
+  private tituloPeriodo(periodo: string, inicio: Date | null, agrupacion: Agrupacion): string {
+    const texto = (periodo ?? '').trim();
+    if (!inicio) return texto || 'Período';
+
+    const mes = MESES[inicio.getMonth()];
+    const anio = inicio.getFullYear();
+
+    if (agrupacion === 'mes') {
+      return `${mes.charAt(0).toUpperCase()}${mes.slice(1)} ${anio}`;
+    }
+
+    const sufijo = anio === new Date().getFullYear() ? '' : ` de ${anio}`;
+    return `Semana del ${inicio.getDate()} de ${mes}${sufijo}`;
+  }
+
+  private fechaValida(anio: number, mes: number, dia: number): Date | null {
+    if (!Number.isInteger(anio) || mes < 1 || mes > 12 || dia < 1) return null;
+    const fecha = new Date(anio, mes - 1, dia);
+    return fecha.getMonth() === mes - 1 && fecha.getDate() === dia ? fecha : null;
   }
 }

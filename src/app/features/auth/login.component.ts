@@ -1,8 +1,12 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { Location } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
+import { PromocionesService } from '../../core/services/promociones.service';
+import { Cupon } from '../../core/models/modelos';
+import { destinoDespuesDeIngresar } from '../../core/guards/destino';
 
 @Component({
   selector: 'app-login',
@@ -10,20 +14,28 @@ import { NotificacionesService } from '../../core/services/notificaciones.servic
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly avisos = inject(NotificacionesService);
+  private readonly promociones = inject(PromocionesService);
   private readonly router = inject(Router);
   private readonly ruta = inject(ActivatedRoute);
+  private readonly ubicacion = inject(Location);
 
   readonly enviando = signal(false);
   readonly verContrasenia = signal(false);
+  readonly cupon = signal<Cupon | null>(null);
+  readonly emailPorActivar = signal(this.emailRecienRegistrado());
 
   readonly formulario = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
+    email: [this.emailPorActivar(), [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
   });
+
+  async ngOnInit(): Promise<void> {
+    this.cupon.set(await this.promociones.cuponBienvenida().catch(() => null));
+  }
 
   mostrarError(campo: string, error: string): boolean {
     const control = this.formulario.get(campo);
@@ -57,7 +69,12 @@ export class LoginComponent {
   }
 
   private destino(): string {
-    const volverA = this.ruta.snapshot.queryParamMap.get('volverA');
-    return volverA && volverA.startsWith('/') ? volverA : '/';
+    return destinoDespuesDeIngresar(this.auth, this.ruta.snapshot.queryParamMap.get('volverA'));
+  }
+
+  private emailRecienRegistrado(): string {
+    const estado = (this.router.currentNavigation()?.extras.state ?? this.ubicacion.getState()) as
+      { emailPorActivar?: unknown } | null | undefined;
+    return typeof estado?.emailPorActivar === 'string' ? estado.emailPorActivar : '';
   }
 }

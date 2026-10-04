@@ -1,11 +1,21 @@
 import { Injectable, Signal, WritableSignal, computed, inject, signal } from '@angular/core';
-import { Session, SupabaseClient } from '@supabase/supabase-js';
+import { Router } from '@angular/router';
+import { AuthError, Session, SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from './supabase.service';
+import { ButacasService } from './butacas.service';
+import { CarritoService } from './carrito.service';
 import { DatosRegistro, Perfil } from '../models/modelos';
+import { hoyLocal } from '../../shared/utils/ventas';
+
+const RUTAS_PROTEGIDAS = /^\/(cuenta|admin|empleado)(\/|\?|#|$)/;
+const CUENTA_EXISTENTE = 'Ya existe una cuenta con ese email';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly supabase = inject(SupabaseService);
+  private readonly router = inject(Router);
+  private readonly butacas = inject(ButacasService);
+  private readonly carrito = inject(CarritoService);
 
   readonly sesion: WritableSignal<Session | null> = signal<Session | null>(null);
   readonly perfil: WritableSignal<Perfil | null> = signal<Perfil | null>(null);
@@ -28,6 +38,7 @@ export class AuthService {
 
   private arranque: Promise<void> | null = null;
   private escuchando = false;
+  private saliendo = false;
 
   private get client(): SupabaseClient {
     return this.supabase.client;
@@ -65,6 +76,7 @@ export class AuthService {
 
       if (!sesion) {
         this.perfil.set(null);
+        this.llevarAlLoginSiHaceFalta();
         return;
       }
 
@@ -87,8 +99,11 @@ export class AuthService {
       if (mensaje.includes('Invalid login credentials')) {
         throw new Error('El email o la contraseña no son correctos');
       }
-      if (mensaje.includes('Email not confirmed')) {
-        throw new Error('Tenés que confirmar tu email antes de ingresar');
+      if (error.code === 'email_not_confirmed' || mensaje.includes('Email not confirmed')) {
+        throw new Error('Todavía no activaste tu cuenta: abrí el enlace que te enviamos por correo');
+      }
+      if (mensaje.toLowerCase().includes('rate limit')) {
+        throw new Error('Hubo demasiados intentos seguidos. Probá de nuevo en unos minutos');
       }
       throw new Error('No pudimos iniciar sesión. Probá de nuevo en unos segundos');
     }
@@ -97,11 +112,12 @@ export class AuthService {
     await this.refrescarPerfil();
   }
 
-  async registrar(datos: DatosRegistro): Promise<void> {
+  async registrar(datos: DatosRegistro): Promise<boolean> {
     const { data, error } = await this.client.auth.signUp({
       email: datos.email.trim(),
       password: datos.password,
       options: {
+        emailRedirectTo: window.location.origin,
         data: {
           nombre: datos.nombre,
           apellido: datos.apellido,
@@ -113,27 +129,49 @@ export class AuthService {
       },
     });
 
-    if (error) {
-      const mensaje = error.message ?? '';
-      if (mensaje.toLowerCase().includes('already registered')) {
-        throw new Error('Ya existe una cuenta con ese email');
-      }
-      throw new Error('No pudimos crear la cuenta. Revisá los datos e intentá otra vez');
+    if (error) throw new Error(this.mensajeDeRegistro(error));
+
+    if (!data.session && data.user && (data.user.identities?.length ?? 0) === 0) {
+      throw new Error(CUENTA_EXISTENTE);
     }
 
-    if (data.session) {
-      this.sesion.set(data.session);
-      await this.refrescarPerfil();
-    }
+    if (!data.session) return false;
+
+    this.sesion.set(data.session);
+    await this.refrescarPerfil().catch(() => this.perfil.set(null));
+    return true;
   }
 
   async salir(): Promise<void> {
-    const { error } = await this.client.auth.signOut();
+    this.saliendo = true;
 
-    this.sesion.set(null);
-    this.perfil.set(null);
+    try {
+      void this.butacas.liberar().catch(() => undefined);
+      this.carrito.limpiarButacas();
 
-    if (error) throw new Error('No pudimos cerrar la sesión');
+      const { error } = await this.client.auth.signOut();
+
+      this.sesion.set(null);
+      this.perfil.set(null);
+
+      if (error) throw new Error('No pudimos cerrar la sesión');
+    } finally {
+      this.saliendo = false;
+    }
+  }
+
+  async tieneCompraPagada(): Promise<boolean> {
+    const usuarioId = this.sesion()?.user?.id ?? null;
+    if (!usuarioId) return false;
+
+    const { count, error } = await this.client
+      .from('compras')
+      .select('id', { count: 'exact', head: true })
+      .eq('usuario_id', usuarioId)
+      .eq('estado', 'pagada');
+
+    if (error) return false;
+    return (count ?? 0) > 0;
   }
 
   async refrescarPerfil(): Promise<void> {
@@ -174,12 +212,43 @@ export class AuthService {
     if (partes.length !== 3 || partes.some(valor => !Number.isFinite(valor))) return null;
 
     const [anio, mes, dia] = partes;
-    const hoy = new Date();
+    const [anioHoy, mesHoy, diaHoy] = hoyLocal().split('-').map(Number);
 
-    let anios = hoy.getFullYear() - anio;
-    const mesActual = hoy.getMonth() + 1;
-    if (mesActual < mes || (mesActual === mes && hoy.getDate() < dia)) anios--;
+    let anios = anioHoy - anio;
+    if (mesHoy < mes || (mesHoy === mes && diaHoy < dia)) anios--;
 
     return anios >= 0 ? anios : null;
+  }
+
+  private llevarAlLoginSiHaceFalta(): void {
+    if (this.saliendo) return;
+
+    const url = this.router.url;
+    if (!RUTAS_PROTEGIDAS.test(url)) return;
+
+    setTimeout(() => {
+      if (this.estaLogueado() || this.router.url !== url) return;
+      void this.router.navigate(['/auth/login'], { queryParams: { volverA: url } });
+    });
+  }
+
+  private mensajeDeRegistro(error: AuthError): string {
+    const codigo = error.code ?? '';
+    const mensaje = (error.message ?? '').toLowerCase();
+
+    if (codigo === 'user_already_exists' || codigo === 'email_exists' || mensaje.includes('already registered')) {
+      return CUENTA_EXISTENTE;
+    }
+    if (codigo === 'over_email_send_rate_limit' || codigo === 'over_request_rate_limit' || mensaje.includes('rate limit')) {
+      return 'Se hicieron demasiados registros seguidos. Probá de nuevo en unos minutos';
+    }
+    if (codigo === 'email_address_not_authorized') {
+      return 'No pudimos enviar el correo de activación a ese email. Probá con otro en unos minutos';
+    }
+    if (codigo === 'email_address_invalid') return 'Ese email no parece válido';
+    if (codigo === 'weak_password') return 'Elegí una contraseña más segura';
+    if (codigo === 'signup_disabled') return 'Por ahora no se pueden crear cuentas nuevas';
+
+    return 'No pudimos crear la cuenta. Revisá los datos e intentá otra vez';
   }
 }

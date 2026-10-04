@@ -16,6 +16,20 @@ export class PromocionesService {
     return (data ?? []) as Cupon[];
   }
 
+  async cuponBienvenida(): Promise<Cupon | null> {
+    const { data, error } = await this.sb.client
+      .from('cupones')
+      .select('*')
+      .eq('tipo', 'bienvenida')
+      .eq('activo', true)
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return null;
+    return (data as Cupon | null) ?? null;
+  }
+
   async crearCupon(datos: Partial<Cupon>): Promise<Cupon> {
     const { data, error } = await this.sb.client
       .from('cupones')
@@ -38,7 +52,13 @@ export class PromocionesService {
 
   async eliminarCupon(id: number): Promise<void> {
     const { error } = await this.sb.client.from('cupones').delete().eq('id', id);
-    if (error) throw new Error('No se pudo eliminar el cupón porque ya fue usado en una compra');
+    if (error) {
+      throw new Error(
+        error.code === '23503'
+          ? 'El cupón ya se usó en compras: desactivalo en lugar de eliminarlo.'
+          : error.message || 'No se pudo eliminar el cupón',
+      );
+    }
   }
 
   async recompensas(soloActivas = false): Promise<Recompensa[]> {
@@ -73,7 +93,13 @@ export class PromocionesService {
 
   async eliminarRecompensa(id: number): Promise<void> {
     const { error } = await this.sb.client.from('recompensas').delete().eq('id', id);
-    if (error) throw new Error('No se pudo eliminar la recompensa porque ya fue canjeada');
+    if (error) {
+      throw new Error(
+        error.code === '23503'
+          ? 'La recompensa ya tiene canjes asociados: desactivala en lugar de eliminarla.'
+          : error.message || 'No se pudo eliminar la recompensa',
+      );
+    }
   }
 
   async canjear(recompensaId: number): Promise<Canje> {

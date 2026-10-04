@@ -6,8 +6,15 @@ import { NotificacionesService } from '../../core/services/notificaciones.servic
 import { ReportesService } from '../../core/services/reportes.service';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import {
+  ColorAccion,
+  colorAccion,
+  etiquetaAccion,
+  nombreEntidad,
+  resumenActividad,
+} from './actividad';
 
-type ColorAccion = 'ok' | 'peligro' | 'ambar' | 'neutro';
+const POR_PAGINA = 50;
 
 interface RegistroVista {
   id: number;
@@ -18,6 +25,7 @@ interface RegistroVista {
   etiqueta: string;
   entidad: string;
   entidadId: string;
+  detalle: string;
   color: ColorAccion;
 }
 
@@ -36,26 +44,33 @@ export class AdminLogComponent implements OnInit {
   readonly registros = signal<LogActividad[]>([]);
   readonly texto = signal('');
   readonly cargando = signal(true);
+  readonly cargandoMas = signal(false);
+  readonly hayMas = signal(false);
 
-  readonly vistas = computed<RegistroVista[]>(() => {
-    const filtro = this.texto().trim().toLowerCase();
-    const lista = this.registros().filter((fila) => {
-      if (!filtro) return true;
-      const buscable = `${fila.accion} ${fila.entidad} ${fila.email ?? ''}`.toLowerCase();
-      return buscable.includes(filtro);
-    });
-
-    return lista.map((fila) => ({
+  private readonly todas = computed<RegistroVista[]>(() =>
+    this.registros().map((fila) => ({
       id: fila.id,
       fecha: this.fecha(fila.creado_en),
       hora: this.hora(fila.creado_en),
       email: fila.email ?? 'Sistema',
       accion: fila.accion,
-      etiqueta: this.etiquetaAccion(fila.accion),
-      entidad: fila.entidad,
+      etiqueta: etiquetaAccion(fila.accion),
+      entidad: nombreEntidad(fila.entidad),
       entidadId: fila.entidad_id ?? '',
-      color: this.colorAccion(fila.accion),
-    }));
+      detalle: resumenActividad(fila),
+      color: colorAccion(fila.accion),
+    })),
+  );
+
+  readonly vistas = computed<RegistroVista[]>(() => {
+    const filtro = this.texto().trim().toLowerCase();
+    if (!filtro) return this.todas();
+
+    return this.todas().filter((registro) =>
+      `${registro.accion} ${registro.etiqueta} ${registro.entidad} ${registro.email} ${registro.detalle}`
+        .toLowerCase()
+        .includes(filtro),
+    );
   });
 
   readonly total = computed(() => this.registros().length);
@@ -79,11 +94,35 @@ export class AdminLogComponent implements OnInit {
     this.busqueda.setValue('');
   }
 
+  async cargarMas(): Promise<void> {
+    if (this.cargandoMas() || !this.hayMas()) return;
+
+    this.cargandoMas.set(true);
+
+    try {
+      const pagina = await this.reportes.actividad(POR_PAGINA, this.registros().length);
+      const conocidos = new Set(this.registros().map((fila) => fila.id));
+      this.registros.update((actuales) => [
+        ...actuales,
+        ...pagina.filter((fila) => !conocidos.has(fila.id)),
+      ]);
+      this.hayMas.set(pagina.length === POR_PAGINA);
+    } catch (error) {
+      this.avisos.error(
+        error instanceof Error ? error.message : 'No se pudieron cargar más movimientos',
+      );
+    } finally {
+      this.cargandoMas.set(false);
+    }
+  }
+
   private async cargar(): Promise<void> {
     this.cargando.set(true);
 
     try {
-      this.registros.set(await this.reportes.actividad(200));
+      const pagina = await this.reportes.actividad(POR_PAGINA, 0);
+      this.registros.set(pagina);
+      this.hayMas.set(pagina.length === POR_PAGINA);
     } catch (error) {
       this.avisos.error(
         error instanceof Error ? error.message : 'No se pudo cargar el registro de actividad',
@@ -111,25 +150,5 @@ export class AdminLogComponent implements OnInit {
       minute: '2-digit',
       hour12: false,
     });
-  }
-
-  private etiquetaAccion(accion: string): string {
-    const nombres: Record<string, string> = {
-      crear: 'Creación',
-      actualizar: 'Actualización',
-      eliminar: 'Eliminación',
-      cancelar: 'Cancelación',
-      comprar: 'Compra',
-      canjear: 'Canje',
-      validar_qr: 'Validación QR',
-    };
-    return nombres[accion] ?? accion.replace(/_/g, ' ');
-  }
-
-  private colorAccion(accion: string): ColorAccion {
-    if (accion.includes('crear')) return 'ok';
-    if (accion.includes('cancelar') || accion.includes('eliminar')) return 'peligro';
-    if (accion.includes('validar')) return 'ambar';
-    return 'neutro';
   }
 }

@@ -13,10 +13,11 @@ import { NotificacionesService } from '../../core/services/notificaciones.servic
 import { FormatoFuncion, Funcion, IdiomaFuncion, Pelicula } from '../../core/models/modelos';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { SelectorFechaHoraComponent } from '../../shared/components/selector-fecha-hora.component';
+import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
-import { preventaVigente } from '../../shared/utils/ventas';
+import { entradasVendidas, preventaVigente } from '../../shared/utils/ventas';
 
 interface GrupoDia {
   clave: string;
@@ -45,6 +46,7 @@ const precioVipValido: ValidatorFn = (grupo: AbstractControl): ValidationErrors 
     ReactiveFormsModule,
     PrecioPipe,
     SelectorFechaHoraComponent,
+    SelectorFechaComponent,
     CargandoComponent,
     VacioComponent,
     ConfirmarComponent,
@@ -71,6 +73,12 @@ export class AdminFuncionesComponent implements OnInit {
   readonly modo = signal<'unica' | 'serie'>('unica');
   readonly confirmaAbierta = signal(false);
   readonly paraEliminar = signal<Funcion | null>(null);
+  readonly verificandoBaja = signal<number | null>(null);
+
+  readonly editando = signal<Funcion | null>(null);
+  readonly vendidasEditando = signal<number | null>(null);
+  readonly consultandoVendidas = signal(false);
+  private inicioOriginal = '';
 
   readonly inicio = signal('');
   readonly horaSerie = signal('20:00');
@@ -145,8 +153,36 @@ export class AdminFuncionesComponent implements OnInit {
       this.fechaCorta(funcion.inicio) +
       ' a las ' +
       this.horaDe(funcion.inicio) +
-      '. Las entradas vendidas se pierden.'
+      '. Si ya tiene entradas vendidas no se va a poder eliminar. Esta acción no se puede deshacer.'
     );
+  });
+
+  readonly tituloPanel = computed(() => (this.editando() ? 'Editar función' : 'Nueva función'));
+
+  readonly horarioBloqueado = computed(() => {
+    if (!this.editando()) return false;
+    const vendidas = this.vendidasEditando();
+    return vendidas === null || vendidas > 0;
+  });
+
+  readonly motivoHorarioBloqueado = computed(() => {
+    if (this.consultandoVendidas()) return 'Revisando si la función tiene entradas vendidas...';
+    const vendidas = this.vendidasEditando();
+    if (vendidas === null) {
+      return 'No pudimos revisar si tiene entradas vendidas, así que por ahora el horario no se puede cambiar.';
+    }
+    return (
+      'Ya tiene ' +
+      entradasVendidas(vendidas) +
+      ': el horario no se puede cambiar, pero sí el precio, el formato y el idioma.'
+    );
+  });
+
+  readonly resumenHorarioActual = computed(() => {
+    const funcion = this.editando();
+    if (!funcion) return '';
+    const clave = this.claveDia(funcion.inicio);
+    return this.etiquetaDia(clave) + ' · ' + this.horaDe(funcion.inicio) + ' h';
   });
 
   async ngOnInit(): Promise<void> {
@@ -170,12 +206,12 @@ export class AdminFuncionesComponent implements OnInit {
 
       const desde = this.filtroDesde();
       if (desde) {
-        filtro.desde = new Date(desde + 'T00:00:00').toISOString();
+        filtro.desde = this.momentoDelDia(desde, 0).toISOString();
       }
 
       const hasta = this.filtroHasta();
       if (hasta) {
-        filtro.hasta = new Date(hasta + 'T23:59:59').toISOString();
+        filtro.hasta = new Date(this.momentoDelDia(hasta, 1).getTime() - 1).toISOString();
       }
 
       this.lista.set(await this.funciones.listar(filtro));
@@ -209,6 +245,10 @@ export class AdminFuncionesComponent implements OnInit {
   }
 
   abrirPanel(): void {
+    this.editando.set(null);
+    this.vendidasEditando.set(null);
+    this.inicioOriginal = '';
+    this.formulario.controls.peliculaId.enable();
     this.modo.set('unica');
     this.formulario.reset({ peliculaId: '', precio: 6500, precioVip: 0 });
     this.inicio.set('');
@@ -222,9 +262,47 @@ export class AdminFuncionesComponent implements OnInit {
     this.panelAbierto.set(true);
   }
 
+  async abrirEdicion(funcion: Funcion): Promise<void> {
+    if (!this.puedeEditar(funcion)) {
+      this.avisos.error('La función ya empezó, así que no se puede editar.');
+      return;
+    }
+
+    const inicioLocal = this.textoLocal(new Date(funcion.inicio));
+    this.editando.set(funcion);
+    this.inicioOriginal = inicioLocal;
+    this.modo.set('unica');
+    this.formulario.reset({
+      peliculaId: String(funcion.pelicula_id),
+      precio: Number(funcion.precio_base),
+      precioVip: Number(funcion.precio_vip),
+    });
+    this.formulario.controls.peliculaId.disable();
+    this.inicio.set(inicioLocal);
+    this.formato.set(funcion.formato);
+    this.idioma.set(funcion.idioma);
+    this.errorPanel.set('');
+    this.erroresSerie.set([]);
+    this.vendidasEditando.set(null);
+    this.consultandoVendidas.set(true);
+    this.panelAbierto.set(true);
+
+    const vendidas = await this.funciones.entradasVendidas(funcion.id);
+    if (this.editando()?.id !== funcion.id) return;
+    this.vendidasEditando.set(vendidas);
+    this.consultandoVendidas.set(false);
+  }
+
+  puedeEditar(funcion: Funcion): boolean {
+    return new Date(funcion.inicio).getTime() > Date.now();
+  }
+
   cerrarPanel(): void {
     if (this.guardando()) return;
     this.panelAbierto.set(false);
+    this.editando.set(null);
+    this.consultandoVendidas.set(false);
+    this.formulario.controls.peliculaId.enable();
   }
 
   elegirModo(valor: 'unica' | 'serie'): void {
@@ -311,6 +389,12 @@ export class AdminFuncionesComponent implements OnInit {
     const precio = Number(valores.precio);
     const precioVip = Number(valores.precioVip);
 
+    const enEdicion = this.editando();
+    if (enEdicion) {
+      await this.guardarEdicion(enEdicion, precio, precioVip);
+      return;
+    }
+
     if (!peliculaId) {
       this.errorPanel.set('Elegí una película.');
       return;
@@ -350,6 +434,47 @@ export class AdminFuncionesComponent implements OnInit {
       await this.cargar();
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : 'No se pudo crear la función';
+      this.errorPanel.set(mensaje);
+      this.avisos.error(mensaje);
+    } finally {
+      this.guardando.set(false);
+    }
+  }
+
+  private async guardarEdicion(
+    funcion: Funcion,
+    precio: number,
+    precioVip: number,
+  ): Promise<void> {
+    const momento = this.inicio();
+    const cambiaHorario = !this.horarioBloqueado() && momento !== this.inicioOriginal;
+
+    if (cambiaHorario) {
+      if (momento.length < 16) {
+        this.errorPanel.set('Elegí el día y el horario de la función.');
+        return;
+      }
+      if (new Date(momento).getTime() <= Date.now()) {
+        this.errorPanel.set('El nuevo horario tiene que ser posterior a este momento.');
+        return;
+      }
+    }
+
+    this.guardando.set(true);
+    try {
+      await this.funciones.actualizar(funcion, {
+        formato: this.formato(),
+        idioma: this.idioma(),
+        precio_base: precio,
+        precio_vip: precioVip,
+        inicio: cambiaHorario ? momento : undefined,
+      });
+      this.avisos.exito('Función actualizada.');
+      this.guardando.set(false);
+      this.cerrarPanel();
+      await this.cargar();
+    } catch (e) {
+      const mensaje = e instanceof Error ? e.message : 'No se pudo actualizar la función';
       this.errorPanel.set(mensaje);
       this.avisos.error(mensaje);
     } finally {
@@ -407,7 +532,29 @@ export class AdminFuncionesComponent implements OnInit {
     }
   }
 
-  pedirBaja(funcion: Funcion): void {
+  async pedirBaja(funcion: Funcion): Promise<void> {
+    if (this.verificandoBaja() !== null) return;
+
+    this.verificandoBaja.set(funcion.id);
+    const vendidas = await this.funciones.entradasVendidas(funcion.id);
+    this.verificandoBaja.set(null);
+
+    if (vendidas !== null && vendidas > 0) {
+      this.avisos.error(
+        'La función del ' +
+          this.fechaCorta(funcion.inicio) +
+          ' ' +
+          this.horaDe(funcion.inicio) +
+          ' tiene ' +
+          entradasVendidas(vendidas) +
+          ' y no se puede eliminar.' +
+          (this.puedeEditar(funcion)
+            ? ' Podés editar su precio, formato o idioma.'
+            : ' Como ya empezó, queda en el historial de ventas.'),
+      );
+      return;
+    }
+
     this.paraEliminar.set(funcion);
     this.confirmaAbierta.set(true);
   }
@@ -475,6 +622,14 @@ export class AdminFuncionesComponent implements OnInit {
       dias[fecha.getDay()] + ' ' + fecha.getDate() + ' de ' + meses[fecha.getMonth()];
 
     return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  private momentoDelDia(clave: string, diasDespues: number): Date {
+    return new Date(
+      Number(clave.slice(0, 4)),
+      Number(clave.slice(5, 7)) - 1,
+      Number(clave.slice(8, 10)) + diasDespues,
+    );
   }
 
   private textoLocal(fecha: Date): string {

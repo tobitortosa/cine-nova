@@ -216,6 +216,20 @@
 
 .tabla tbody tr:hover { background: var(--c-surface-2); }
 
+.tabla th:last-child,
+.tabla td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+.tabla tbody td:last-child {
+  background: var(--c-surface);
+  transition: background var(--t-fast);
+}
+
+.tabla tbody tr:hover td:last-child { background: var(--c-surface-2); }
+
 .derecha { text-align: right; }
 
 .suave { color: var(--c-text-soft); }

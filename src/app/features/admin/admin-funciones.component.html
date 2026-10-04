@@ -30,22 +30,24 @@
 
     <div class="campo">
       <label for="filtro-desde">Desde</label>
-      <input
+      <app-selector-fecha
         id="filtro-desde"
-        #campoDesde
-        type="date"
-        [value]="filtroDesde()"
-        (change)="cambiarDesde(campoDesde.value)" />
+        etiqueta="Desde"
+        textoVacio="Cualquier día"
+        [maximo]="filtroHasta()"
+        [valor]="filtroDesde()"
+        (valorChange)="cambiarDesde($event)" />
     </div>
 
     <div class="campo">
       <label for="filtro-hasta">Hasta</label>
-      <input
+      <app-selector-fecha
         id="filtro-hasta"
-        #campoHasta
-        type="date"
-        [value]="filtroHasta()"
-        (change)="cambiarHasta(campoHasta.value)" />
+        etiqueta="Hasta"
+        textoVacio="Cualquier día"
+        [minimo]="filtroDesde()"
+        [valor]="filtroHasta()"
+        (valorChange)="cambiarHasta($event)" />
     </div>
 
     <button type="button" class="btn btn-secundario limpiar" (click)="limpiarFiltros()">
@@ -62,13 +64,13 @@
       <button type="button" class="btn btn-primario" (click)="abrirPanel()">Nueva función</button>
     </app-vacio>
   } @else {
-    <p class="resumen">{{ lista().length }} funciones en {{ grupos().length }} días</p>
+    <p class="resumen">{{ lista().length }} {{ lista().length === 1 ? 'función' : 'funciones' }} en {{ grupos().length }} {{ grupos().length === 1 ? 'día' : 'días' }}</p>
 
     @for (grupo of grupos(); track grupo.clave) {
       <section class="dia anim-subir">
         <header class="dia-cabecera">
           <h2>{{ grupo.etiqueta }}</h2>
-          <span class="chip">{{ grupo.funciones.length }} funciones</span>
+          <span class="chip">{{ grupo.funciones.length }} {{ grupo.funciones.length === 1 ? 'función' : 'funciones' }}</span>
         </header>
 
         <div class="tabla-caja">
@@ -102,7 +104,20 @@
                   <td class="numero" [attr.data-rotulo]="'Precio'">{{ funcion.precio_base | precio }}</td>
                   <td class="numero" [attr.data-rotulo]="'VIP'">{{ funcion.precio_vip | precio }}</td>
                   <td class="final">
-                    <button type="button" class="borrar" aria-label="Eliminar función" (click)="pedirBaja(funcion)">
+                    @if (puedeEditar(funcion)) {
+                      <button type="button" class="editar" aria-label="Editar función" title="Editar función" (click)="abrirEdicion(funcion)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4" />
+                        </svg>
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="borrar"
+                      aria-label="Eliminar función"
+                      title="Eliminar función"
+                      [disabled]="verificandoBaja() === funcion.id"
+                      (click)="pedirBaja(funcion)">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
                       </svg>
@@ -122,7 +137,7 @@
 
     <aside class="panel" role="dialog" aria-modal="true" aria-label="Formulario de funciones">
       <header class="panel-cabecera">
-        <h2>Nueva función</h2>
+        <h2>{{ tituloPanel() }}</h2>
         <button type="button" class="cerrar" aria-label="Cerrar panel" (click)="cerrarPanel()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -137,14 +152,24 @@
               <circle cx="12" cy="12" r="9" />
               <path d="M12 11v6M12 7.5v.01" />
             </svg>
-            <div class="texto">
-              <strong>La sala la asigna el sistema automáticamente.</strong>
-              <span>
-                No elegís sala: la base busca una libre para el horario pedido y garantiza
-                <strong>media hora libre</strong> entre funciones de la misma sala para limpieza y
-                recambio de público. Si no queda ninguna sala libre, la función no se crea.
-              </span>
-            </div>
+            @if (editando(); as funcion) {
+              <div class="texto">
+                <strong>La función sigue en {{ funcion.sala?.nombre ?? 'la misma sala' }}.</strong>
+                <span>
+                  Si cambiás el horario, esa sala tiene que estar libre con <strong>media hora</strong>
+                  de recambio antes y después. Las entradas ya vendidas conservan el precio que se pagó.
+                </span>
+              </div>
+            } @else {
+              <div class="texto">
+                <strong>La sala la asigna el sistema automáticamente.</strong>
+                <span>
+                  No elegís sala: la base busca una libre para el horario pedido y garantiza
+                  <strong>media hora libre</strong> entre funciones de la misma sala para limpieza y
+                  recambio de público. Si no queda ninguna sala libre, la función no se crea.
+                </span>
+              </div>
+            }
           </div>
 
           @if (errorPanel()) {
@@ -174,26 +199,28 @@
             </div>
           }
 
-          <div class="pestanias" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              class="pestania"
-              [class.activa]="modo() === 'unica'"
-              [attr.aria-selected]="modo() === 'unica'"
-              (click)="elegirModo('unica')">
-              Función única
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="pestania"
-              [class.activa]="modo() === 'serie'"
-              [attr.aria-selected]="modo() === 'serie'"
-              (click)="elegirModo('serie')">
-              Serie semanal
-            </button>
-          </div>
+          @if (!editando()) {
+            <div class="pestanias" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                class="pestania"
+                [class.activa]="modo() === 'unica'"
+                [attr.aria-selected]="modo() === 'unica'"
+                (click)="elegirModo('unica')">
+                Función única
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="pestania"
+                [class.activa]="modo() === 'serie'"
+                [attr.aria-selected]="modo() === 'serie'"
+                (click)="elegirModo('serie')">
+                Serie semanal
+              </button>
+            </div>
+          }
 
           <div class="campo">
             <label for="pelicula">Película</label>
@@ -203,6 +230,9 @@
                 <option [value]="pelicula.id">{{ etiquetaPelicula(pelicula) }}</option>
               }
             </select>
+            @if (editando()) {
+              <span class="ayuda">La película de una función no se cambia: si hace falta otra, creá una función nueva.</span>
+            }
             @if (formulario.controls.peliculaId.touched && formulario.controls.peliculaId.invalid) {
               <span class="error-campo">Elegí la película de la función.</span>
             }
@@ -211,11 +241,19 @@
           @switch (modo()) {
             @case ('unica') {
               <div class="bloque">
-                <app-selector-fecha-hora
-                  etiqueta="Fecha y hora de la función"
-                  [minimo]="minimoFecha"
-                  [valor]="inicio()"
-                  (valorChange)="cambiarInicio($event)" />
+                @if (horarioBloqueado()) {
+                  <span class="rotulo">Fecha y hora de la función</span>
+                  <div class="horario-fijo">
+                    <strong>{{ resumenHorarioActual() }}</strong>
+                    <span>{{ motivoHorarioBloqueado() }}</span>
+                  </div>
+                } @else {
+                  <app-selector-fecha-hora
+                    etiqueta="Fecha y hora de la función"
+                    [minimo]="minimoFecha"
+                    [valor]="inicio()"
+                    (valorChange)="cambiarInicio($event)" />
+                }
               </div>
             }
             @case ('serie') {
@@ -351,7 +389,9 @@
           </button>
           <button type="submit" class="btn btn-primario" [disabled]="guardando()">
             @if (guardando()) {
-              Programando...
+              {{ editando() ? 'Guardando...' : 'Programando...' }}
+            } @else if (editando()) {
+              Guardar cambios
             } @else if (modo() === 'serie') {
               Crear serie
             } @else {

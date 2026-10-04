@@ -139,13 +139,15 @@
   }
 
   .final {
-    width: 52px;
+    width: 92px;
     text-align: right;
+    white-space: nowrap;
   }
 }
 
+.editar,
 .borrar {
-  display: grid;
+  display: inline-grid;
   place-items: center;
   width: 32px;
   height: 32px;
@@ -154,17 +156,35 @@
   border-radius: var(--r-md);
   color: var(--c-text-faint);
   cursor: pointer;
+  vertical-align: middle;
   transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 
   svg {
     width: 16px;
     height: 16px;
   }
+}
+
+.editar {
+  margin-right: 6px;
 
   &:hover {
+    background: rgb(245 180 60 / 0.12);
+    border-color: var(--c-accent);
+    color: var(--c-accent-soft);
+  }
+}
+
+.borrar {
+  &:hover:not(:disabled) {
     background: rgb(240 82 79 / 0.14);
     border-color: var(--c-danger);
     color: var(--c-danger);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: progress;
   }
 }
 
@@ -388,6 +408,27 @@
   font-size: 0.76rem;
 }
 
+.horario-fijo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+
+  strong {
+    color: var(--c-accent-soft);
+    font-size: 0.95rem;
+  }
+
+  span {
+    color: var(--c-text-soft);
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+}
+
 .dias-botones {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -585,13 +626,14 @@
       letter-spacing: 0.04em;
     }
 
+    tbody td.pelicula::before,
+    tbody td.final::before {
+      content: none;
+    }
+
     .pelicula {
       grid-column: 1 / -1;
       font-size: 0.98rem;
-
-      &::before {
-        content: '';
-      }
     }
 
     .numero {
@@ -602,10 +644,6 @@
       grid-row: 1;
       grid-column: 2;
       width: auto;
-
-      &::before {
-        content: '';
-      }
     }
   }
 

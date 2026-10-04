@@ -11,8 +11,7 @@ import { ReportesService } from '../../core/services/reportes.service';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { DesdePipe } from '../../shared/pipes/desde.pipe';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
-
-type ColorAccion = 'ok' | 'peligro' | 'ambar' | 'neutro';
+import { ColorAccion, colorAccion, etiquetaAccion, nombreEntidad } from './actividad';
 
 interface Metrica {
   clave: string;
@@ -167,12 +166,12 @@ export class DashboardComponent implements OnInit {
   readonly registros = computed<RegistroVista[]>(() =>
     this.actividad().map((fila) => ({
       id: fila.id,
-      etiqueta: this.etiquetaAccion(fila.accion),
-      entidad: fila.entidad,
+      etiqueta: etiquetaAccion(fila.accion),
+      entidad: nombreEntidad(fila.entidad),
       entidadId: fila.entidad_id ?? '',
       email: fila.email ?? 'Sistema',
       creado: fila.creado_en,
-      color: this.colorAccion(fila.accion),
+      color: colorAccion(fila.accion),
     })),
   );
 
@@ -265,25 +264,5 @@ export class DashboardComponent implements OnInit {
       month: 'long',
     });
     return `${texto.charAt(0).toUpperCase()}${texto.slice(1)}`;
-  }
-
-  private etiquetaAccion(accion: string): string {
-    const nombres: Record<string, string> = {
-      crear: 'Creación',
-      actualizar: 'Actualización',
-      eliminar: 'Eliminación',
-      cancelar: 'Cancelación',
-      comprar: 'Compra',
-      canjear: 'Canje',
-      validar_qr: 'Validación QR',
-    };
-    return nombres[accion] ?? accion.replace(/_/g, ' ');
-  }
-
-  private colorAccion(accion: string): ColorAccion {
-    if (accion.includes('crear')) return 'ok';
-    if (accion.includes('cancelar') || accion.includes('eliminar')) return 'peligro';
-    if (accion.includes('validar')) return 'ambar';
-    return 'neutro';
   }
 }

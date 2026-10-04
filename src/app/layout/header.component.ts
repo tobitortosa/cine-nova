@@ -1,6 +1,8 @@
 import { Component, ElementRef, HostListener, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { filter, map } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
 import { CarritoService } from '../core/services/carrito.service';
 import { NotificacionesService } from '../core/services/notificaciones.service';
@@ -39,6 +41,19 @@ export class HeaderComponent {
 
   readonly puntos = computed(() => this.auth.perfil()?.puntos ?? 0);
   readonly email = computed(() => this.auth.perfil()?.email ?? '');
+
+  private readonly urlActual = toSignal(
+    this.router.events.pipe(
+      filter((evento) => evento instanceof NavigationEnd),
+      map(() => this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  readonly volverA = computed(() => {
+    const url = this.urlActual();
+    return url === '/' ? {} : { volverA: url };
+  });
 
   @HostListener('window:scroll')
   alDesplazar(): void {

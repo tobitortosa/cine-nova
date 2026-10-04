@@ -9,12 +9,20 @@
   <div class="rango">
     <div class="campo">
       <label for="desde">Desde</label>
-      <input id="desde" type="date" formControlName="desde" />
+      <app-selector-fecha
+        id="desde"
+        etiqueta="Desde"
+        formControlName="desde"
+        [maximo]="formulario.controls.hasta.value" />
     </div>
 
     <div class="campo">
       <label for="hasta">Hasta</label>
-      <input id="hasta" type="date" formControlName="hasta" />
+      <app-selector-fecha
+        id="hasta"
+        etiqueta="Hasta"
+        formControlName="hasta"
+        [minimo]="formulario.controls.desde.value" />
     </div>
 
     <button class="btn btn-primario generar" type="submit" [disabled]="generando()">
@@ -170,7 +178,7 @@
   <header class="bloque-cab">
     <div>
       <h2>Películas más vistas</h2>
-      <p class="nota">Entradas validadas agrupadas por período</p>
+      <p class="nota">Entradas vendidas de funciones ya proyectadas, por semana o mes de la función</p>
     </div>
 
     <div class="alternador" role="group" aria-label="Agrupación de películas más vistas">
@@ -213,7 +221,7 @@
         </ul>
       </div>
     } @empty {
-      <app-vacio titulo="Sin funciones vistas" texto="Todavía no hay entradas validadas para armar el ranking." />
+      <app-vacio titulo="Sin funciones vistas" texto="Todavía no hay funciones ya proyectadas con entradas vendidas para armar el ranking." />
     }
   }
 </section>

@@ -51,7 +51,14 @@
               </div>
 
               <div class="combo-cuerpo">
-                <span class="chip chip-accent">Combo</span>
+                <div class="combo-chips">
+                  <span class="chip chip-accent">Combo</span>
+                  @if (entradasDe(combo); as incluidas) {
+                    <span class="chip chip-entradas">
+                      Incluye {{ incluidas }} {{ incluidas === 1 ? 'entrada' : 'entradas' }}
+                    </span>
+                  }
+                </div>
                 <h3>{{ combo.nombre }}</h3>
                 @if (combo.descripcion) {
                   <p class="descripcion">{{ combo.descripcion }}</p>
@@ -72,6 +79,7 @@
                     <button
                       type="button"
                       class="paso"
+                      [disabled]="cantidadDe(claveCombo(combo)) >= topeUnidades"
                       (click)="cambiarCantidad(claveCombo(combo), 1)"
                       aria-label="Sumar uno"
                     >+</button>
@@ -152,6 +160,7 @@
                       <button
                         type="button"
                         class="paso"
+                        [disabled]="cantidadDe(claveProducto(producto)) >= topeUnidades"
                         (click)="cambiarCantidad(claveProducto(producto), 1)"
                         aria-label="Sumar uno"
                       >+</button>
@@ -224,6 +233,7 @@
                 <button
                   type="button"
                   class="paso"
+                  [disabled]="!puedeSumar(item)"
                   (click)="ajustarDelCarrito($index, 1)"
                   aria-label="Sumar uno"
                 >+</button>
@@ -250,6 +260,11 @@
         <p class="panel-nota">
           El candy bar se paga junto con las entradas: elegí una función, sumá tus butacas y
           tu pedido viaja con la compra.
+          @if (entradasEnPedido() > 0) {
+            Tus combos incluyen {{ entradasEnPedido() }}
+            {{ entradasEnPedido() === 1 ? 'entrada' : 'entradas' }}: elegí al menos esa cantidad de
+            butacas y no te las cobramos aparte.
+          }
         </p>
         <a class="btn btn-primario" routerLink="/peliculas">Elegir función</a>
       </div>

@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PeliculasService } from '../../core/services/peliculas.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
@@ -9,6 +10,8 @@ import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
+import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
+import { entradasVendidas } from '../../shared/utils/ventas';
 
 @Component({
   selector: 'app-admin-peliculas',
@@ -20,6 +23,7 @@ import { ConfirmarComponent } from '../../shared/components/confirmar.component'
     CargandoComponent,
     VacioComponent,
     ConfirmarComponent,
+    SelectorFechaComponent,
   ],
   templateUrl: './admin-peliculas.component.html',
   styleUrl: './admin-peliculas.component.scss',
@@ -39,6 +43,7 @@ export class AdminPeliculasComponent implements OnInit {
   readonly editando = signal<Pelicula | null>(null);
   readonly confirmaAbierta = signal(false);
   readonly paraEliminar = signal<Pelicula | null>(null);
+  readonly verificandoBaja = signal<number | null>(null);
 
   readonly restriccion = signal(0);
   readonly generosElegidos = signal<number[]>([]);
@@ -74,9 +79,15 @@ export class AdminPeliculasComponent implements OnInit {
     return (
       'Se va a eliminar "' +
       pelicula.titulo +
-      '" junto con sus funciones y reseñas. Esta acción no se puede deshacer.'
+      '" junto con sus funciones y reseñas. Si alguna función ya vendió entradas no se va a poder eliminar: en ese caso sacala de cartelera. Esta acción no se puede deshacer.'
     );
   });
+
+  constructor() {
+    this.formulario.controls.fecha_estreno.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => this.sincronizarPreventa());
+  }
 
   async ngOnInit(): Promise<void> {
     await this.cargar();
@@ -164,7 +175,7 @@ export class AdminPeliculasComponent implements OnInit {
   }
 
   sincronizarPreventa(): void {
-    const hayFecha = this.formulario.controls.fecha_estreno.value.trim().length > 0;
+    const hayFecha = (this.formulario.controls.fecha_estreno.value ?? '').trim().length > 0;
     this.tieneEstreno.set(hayFecha);
 
     if (hayFecha) {
@@ -225,7 +236,24 @@ export class AdminPeliculasComponent implements OnInit {
     }
   }
 
-  pedirBaja(pelicula: Pelicula): void {
+  async pedirBaja(pelicula: Pelicula): Promise<void> {
+    if (this.verificandoBaja() !== null) return;
+
+    this.verificandoBaja.set(pelicula.id);
+    const vendidas = await this.peliculas.entradasVendidas(pelicula.id);
+    this.verificandoBaja.set(null);
+
+    if (vendidas !== null && vendidas > 0) {
+      this.avisos.error(
+        '"' +
+          pelicula.titulo +
+          '" tiene ' +
+          entradasVendidas(vendidas) +
+          ' y no se puede eliminar. Si querés retirarla, sacala de cartelera desde Editar.',
+      );
+      return;
+    }
+
     this.paraEliminar.set(pelicula);
     this.confirmaAbierta.set(true);
   }

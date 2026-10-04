@@ -219,7 +219,11 @@ export class AdminPromocionesComponent implements OnInit {
 
   pedirBaja(tipo: PestaniaPromocion, id: number, nombre: string): void {
     this.pedido = { tipo, id, nombre };
-    this.textoBaja.set(`Vas a eliminar "${nombre}" de forma permanente. Esta acción no se puede deshacer.`);
+    this.textoBaja.set(
+      tipo === 'cupones'
+        ? `Vas a eliminar el cupón "${nombre}". Las compras que ya lo usaron conservan su descuento, pero dejan de mostrar qué cupón se aplicó. Si solo querés que no se use más, desactivalo. Esta acción no se puede deshacer.`
+        : `Vas a eliminar la recompensa "${nombre}" del catálogo. Los canjes que ya hicieron los clientes siguen valiendo. Si solo querés pausarla, desactivala. Esta acción no se puede deshacer.`,
+    );
     this.confirmando.set(true);
   }
 

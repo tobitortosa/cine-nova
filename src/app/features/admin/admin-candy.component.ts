@@ -7,6 +7,7 @@ import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
+import { entradasIncluidas } from '../../shared/utils/ventas';
 
 type PestaniaCandy = 'categorias' | 'productos' | 'combos';
 
@@ -60,6 +61,10 @@ export class AdminCandyComponent implements OnInit {
     nombre: ['', [Validators.required, Validators.maxLength(80)]],
     descripcion: ['', [Validators.maxLength(240)]],
     precio: [0, [Validators.required, Validators.min(0)]],
+    entradas_incluidas: [
+      0,
+      [Validators.required, Validators.min(0), Validators.max(10), Validators.pattern(/^\d+$/)],
+    ],
     imagen_url: [''],
     activo: [true],
   });
@@ -147,6 +152,7 @@ export class AdminCandyComponent implements OnInit {
       nombre: combo.nombre,
       descripcion: combo.descripcion ?? '',
       precio: combo.precio,
+      entradas_incluidas: this.entradasDe(combo),
       imagen_url: combo.imagen_url ?? '',
       activo: combo.activo,
     });
@@ -171,9 +177,19 @@ export class AdminCandyComponent implements OnInit {
     }
   }
 
+  entradasDe(combo: Combo): number {
+    return entradasIncluidas(combo);
+  }
+
+  textoEntradas(combo: Combo): string {
+    const cantidad = this.entradasDe(combo);
+    if (cantidad === 0) return 'Sin entradas';
+    return cantidad === 1 ? 'Incluye 1 entrada' : `Incluye ${cantidad} entradas`;
+  }
+
   pedirBaja(tipo: PestaniaCandy, id: number, nombre: string): void {
     this.pedido = { tipo, id, nombre };
-    this.textoBaja.set(`Vas a eliminar "${nombre}" de forma permanente. Esta acción no se puede deshacer.`);
+    this.textoBaja.set(this.textoConfirmacionBaja(tipo, nombre));
     this.confirmando.set(true);
   }
 
@@ -299,6 +315,7 @@ export class AdminCandyComponent implements OnInit {
       nombre: (valores.nombre ?? '').trim(),
       descripcion: (valores.descripcion ?? '').trim(),
       precio: Number(valores.precio ?? 0),
+      entradas_incluidas: Number(valores.entradas_incluidas ?? 0),
       imagen_url: (valores.imagen_url ?? '').trim() || null,
       activo: valores.activo ?? true,
     };
@@ -339,8 +356,20 @@ export class AdminCandyComponent implements OnInit {
       nombre: '',
       descripcion: '',
       precio: 0,
+      entradas_incluidas: 0,
       imagen_url: '',
       activo: true,
     });
+  }
+
+  private textoConfirmacionBaja(tipo: PestaniaCandy, nombre: string): string {
+    switch (tipo) {
+      case 'categorias':
+        return `Vas a eliminar la categoría "${nombre}". Sus productos no se borran: quedan sin categoría. Esta acción no se puede deshacer.`;
+      case 'productos':
+        return `Vas a eliminar "${nombre}" de forma permanente. Si tiene canjes sin usar o es parte de una recompensa activa no se va a poder eliminar: en ese caso desactivalo para que no se venda más.`;
+      default:
+        return `Vas a eliminar el combo "${nombre}". Las compras que ya lo incluyeron conservan su detalle. Si solo querés dejar de venderlo, desactivalo. Esta acción no se puede deshacer.`;
+    }
   }
 }

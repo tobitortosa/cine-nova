@@ -92,9 +92,9 @@
               <td class="email">{{ usuario.email }}</td>
               <td class="suave">{{ fecha(usuario.fecha_nacimiento) }}</td>
               <td class="derecha suave">{{ edad(usuario.fecha_nacimiento) }}</td>
-              <td class="derecha"><strong class="puntos">{{ usuario.puntos }}</strong></td>
+              <td class="derecha"><strong class="puntos">{{ numero(usuario.puntos) }}</strong></td>
               <td class="derecha"><strong class="credito">{{ usuario.credito | precio }}</strong></td>
-              <td class="suave">{{ fecha(usuario.creado_en) }}</td>
+              <td class="suave">{{ fechaAlta(usuario.creado_en) }}</td>
               <td>
                 <select
                   class="select-rol"

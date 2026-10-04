@@ -37,6 +37,8 @@ begin
   return v_row;
 end $$;
 
+drop function if exists reservar_butacas(bigint, bigint[], text);
+
 create or replace function reservar_butacas(p_funcion_id bigint, p_butacas bigint[], p_sesion text)
 returns void language plpgsql security definer set search_path = public as $$
 declare v_f funciones;

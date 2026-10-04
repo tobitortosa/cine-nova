@@ -4,6 +4,8 @@ import { precioEntrada } from '../../shared/utils/ventas';
 
 const CLAVE_CARRITO = 'cinenova_carrito';
 
+export const TOPE_UNIDADES = 20;
+
 @Injectable({ providedIn: 'root' })
 export class CarritoService {
   readonly funcion = signal<Funcion | null>(null);
@@ -54,14 +56,23 @@ export class CarritoService {
       );
 
       if (indice === -1) {
-        return [...lista, { ...item }];
+        return [...lista, { ...item, cantidad: Math.min(TOPE_UNIDADES, item.cantidad) }];
       }
 
       return lista.map((fila, i) =>
-        i === indice ? { ...fila, cantidad: fila.cantidad + item.cantidad } : fila,
+        i === indice
+          ? { ...fila, cantidad: Math.min(TOPE_UNIDADES, fila.cantidad + item.cantidad) }
+          : fila,
       );
     });
     this.guardar();
+  }
+
+  cantidadDe(productoId: number | null, comboId: number | null): number {
+    return (
+      this.items().find((item) => item.producto_id === productoId && item.combo_id === comboId)
+        ?.cantidad ?? 0
+    );
   }
 
   quitarProducto(indice: number): void {
@@ -75,8 +86,10 @@ export class CarritoService {
       return;
     }
 
+    const tope = Math.min(TOPE_UNIDADES, cantidad);
+
     this.items.update((lista) =>
-      lista.map((fila, i) => (i === indice ? { ...fila, cantidad } : fila)),
+      lista.map((fila, i) => (i === indice ? { ...fila, cantidad: tope } : fila)),
     );
     this.guardar();
   }
@@ -135,10 +148,35 @@ export class CarritoService {
       if (!crudo) {
         return [];
       }
-      const guardados = JSON.parse(crudo);
-      return Array.isArray(guardados) ? (guardados as ItemCarrito[]) : [];
+      const guardados: unknown = JSON.parse(crudo);
+      if (!Array.isArray(guardados)) {
+        return [];
+      }
+      return guardados
+        .filter((item): item is ItemCarrito => this.esItemValido(item))
+        .map((item) => ({ ...item, cantidad: Math.min(TOPE_UNIDADES, item.cantidad) }));
     } catch {
       return [];
     }
+  }
+
+  private esItemValido(item: unknown): boolean {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+
+    const fila = item as Partial<ItemCarrito>;
+    const producto = fila.producto_id ?? null;
+    const combo = fila.combo_id ?? null;
+
+    return (
+      (producto === null) !== (combo === null) &&
+      (producto === null || Number.isInteger(producto)) &&
+      (combo === null || Number.isInteger(combo)) &&
+      typeof fila.nombre === 'string' &&
+      Number.isInteger(fila.cantidad) &&
+      Number(fila.cantidad) >= 1 &&
+      Number.isFinite(Number(fila.precio_unitario))
+    );
   }
 }

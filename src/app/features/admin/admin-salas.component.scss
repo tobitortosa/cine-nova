@@ -237,6 +237,8 @@
 }
 
 .mapa {
+  --lado-butaca: 7px;
+
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -260,6 +262,12 @@
   display: flex;
   gap: 2px;
 
+  &.lateral {
+    flex: 0 0 auto;
+    width: calc(var(--lado-butaca) * 4 + 6px);
+    justify-content: space-around;
+  }
+
   &.centro {
     flex: 1;
     justify-content: space-between;
@@ -267,8 +275,8 @@
 }
 
 .butaca {
-  width: 7px;
-  height: 7px;
+  width: var(--lado-butaca);
+  height: var(--lado-butaca);
   border-radius: 2px;
   background: var(--c-surface-3);
 
@@ -446,9 +454,8 @@
     grid-template-columns: 1fr;
   }
 
-  .butaca {
-    width: 5px;
-    height: 5px;
+  .mapa {
+    --lado-butaca: 5px;
   }
 
   .panel-pie .btn {

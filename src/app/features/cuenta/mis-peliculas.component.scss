@@ -284,6 +284,17 @@
   flex-wrap: wrap;
 }
 
+.contador {
+  align-self: flex-end;
+  font-size: .76rem;
+  color: var(--c-text-faint);
+
+  &.al-limite {
+    color: var(--c-accent);
+    font-weight: 700;
+  }
+}
+
 @media (max-width: 640px) {
   .cuenta {
     padding-block: 24px 56px;

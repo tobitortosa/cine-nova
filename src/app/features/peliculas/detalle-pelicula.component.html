@@ -205,7 +205,20 @@
             </div>
           </div>
 
-          @if (auth.estaLogueado()) {
+          @if (!estrenada()) {
+            <div class="invitacion">
+              <div>
+                <strong>Todavía no se estrenó</strong>
+                <p>
+                  @if (estreno()) {
+                    Vas a poder puntuarla y dejar tu comentario desde el estreno, el {{ estreno() }}.
+                  } @else {
+                    Vas a poder puntuarla y dejar tu comentario cuando se estrene.
+                  }
+                </p>
+              </div>
+            </div>
+          } @else if (auth.estaLogueado()) {
             <form class="formulario" [formGroup]="formulario" (ngSubmit)="guardarResenia()">
               <h3>
                 @if (miResenia()) {
@@ -276,14 +289,16 @@
                 <strong>¿Ya la viste?</strong>
                 <p>Ingresá a tu cuenta para puntuarla y contarle al resto qué te pareció.</p>
               </div>
-              <a class="btn btn-primario" routerLink="/auth/login">Ingresar</a>
+              <a class="btn btn-primario" routerLink="/auth/login" [queryParams]="volverAPelicula()">Ingresar</a>
             </div>
           }
 
           @if (resenias().length === 0) {
-            <app-vacio
-              titulo="Todavía no hay reseñas"
-              texto="Sé la primera persona en opinar sobre esta película." />
+            @if (estrenada()) {
+              <app-vacio
+                titulo="Todavía no hay reseñas"
+                texto="Sé la primera persona en opinar sobre esta película." />
+            }
           } @else {
             <ul class="lista-resenias">
               @for (resenia of resenias(); track resenia.id) {

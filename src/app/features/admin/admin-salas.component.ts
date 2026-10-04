@@ -40,8 +40,13 @@ export class AdminSalasComponent implements OnInit {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
     'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
   ];
-  readonly bloqueLateral: number[] = [1, 2, 3, 4];
-  readonly bloqueCentral: number[] = Array.from({ length: 20 }, (_, indice) => indice + 1);
+  private readonly bloqueLateral: number[] = [1, 2, 3, 4];
+  private readonly bloqueCentral: number[] = Array.from({ length: 20 }, (_, indice) => indice + 1);
+  private readonly lateralAccesible: number[] = [1, 2];
+  private readonly centralAccesible: number[] = Array.from(
+    { length: 10 },
+    (_, indice) => indice + 1,
+  );
 
   private readonly filasAccesibles: string[] = ['J', 'K'];
   private readonly filasVip: string[] = ['R', 'S', 'T'];
@@ -60,7 +65,7 @@ export class AdminSalasComponent implements OnInit {
     return (
       'Se va a eliminar la sala "' +
       sala.nombre +
-      '" con todas sus butacas y funciones programadas. Esta acción no se puede deshacer.'
+      '" con sus butacas. Solo se pueden eliminar salas que no tengan ninguna función, ni siquiera pasada. Esta acción no se puede deshacer.'
     );
   });
 
@@ -156,6 +161,14 @@ export class AdminSalasComponent implements OnInit {
 
   esVip(letra: string): boolean {
     return this.tipoDeFila(letra) === 'vip';
+  }
+
+  lateral(letra: string): number[] {
+    return this.esAccesible(letra) ? this.lateralAccesible : this.bloqueLateral;
+  }
+
+  central(letra: string): number[] {
+    return this.esAccesible(letra) ? this.centralAccesible : this.bloqueCentral;
   }
 
   porcentaje(parte: number, total: number): number {

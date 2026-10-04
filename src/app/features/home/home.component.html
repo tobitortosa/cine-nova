@@ -9,8 +9,8 @@
       <div class="skeleton falso falso-botones"></div>
     </div>
   </section>
-} @else if (destacadas().length > 0) {
-  <section class="hero" aria-label="Película destacada">
+} @else if (diapositivas().length > 0) {
+  <section class="hero" aria-label="Las más vendidas y destacadas">
     @for (destacada of heroeLista(); track destacada.id) {
       <article class="diapositiva">
         <div class="hero-fondo">
@@ -25,7 +25,19 @@
 
         <div class="contenedor hero-interno">
           <div class="hero-texto">
-            <p class="hero-encabezado">En cartelera</p>
+            @if (actual(); as diapositiva) {
+              @if (diapositiva.puesto !== null) {
+                <p class="hero-ranking">
+                  <span class="ranking-puesto">#{{ diapositiva.puesto }}</span>
+                  <span class="ranking-texto">
+                    <span class="ranking-titulo">{{ encabezado(diapositiva) }}</span>
+                    <span class="ranking-detalle">{{ textoVentas(diapositiva.vendidas) }}</span>
+                  </span>
+                </p>
+              } @else {
+                <p class="hero-encabezado">{{ encabezado(diapositiva) }}</p>
+              }
+            }
             <h1 class="hero-titulo">{{ destacada.titulo }}</h1>
 
             <div class="hero-metadatos">
@@ -64,16 +76,17 @@
       </article>
     }
 
-    @if (destacadas().length > 1) {
-      <div class="indicadores" role="tablist" aria-label="Películas destacadas">
-        @for (opcion of destacadas(); track opcion.id; let i = $index) {
+    @if (diapositivas().length > 1) {
+      <div class="indicadores" role="tablist" aria-label="Las más vendidas y destacadas">
+        @for (opcion of diapositivas(); track opcion.pelicula.id; let i = $index) {
           <button
             type="button"
             class="punto"
             role="tab"
-            [class.activo]="i === indice()"
-            [attr.aria-selected]="i === indice()"
-            [attr.aria-label]="'Ver ' + opcion.titulo"
+            [class.ranking]="opcion.puesto !== null"
+            [class.activo]="i === indice() % diapositivas().length"
+            [attr.aria-selected]="i === indice() % diapositivas().length"
+            [attr.aria-label]="etiquetaIndicador(opcion)"
             (click)="elegirDestacada(i)">
             <span class="barra"></span>
           </button>
@@ -116,7 +129,7 @@
             </span>
             <span class="podio-datos">
               <span class="podio-titulo">{{ fila.titulo }}</span>
-              <span class="podio-ventas">{{ fila.vendidas }} entradas vendidas</span>
+              <span class="podio-ventas">{{ textoVendidas(fila.vendidas) }}</span>
             </span>
           </a>
         }

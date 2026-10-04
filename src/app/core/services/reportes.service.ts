@@ -78,12 +78,13 @@ export class ReportesService {
     }));
   }
 
-  async actividad(limite = 60): Promise<LogActividad[]> {
+  async actividad(limite = 60, desde = 0): Promise<LogActividad[]> {
     const { data, error } = await this.sb.client
       .from('log_actividad')
       .select('*')
       .order('creado_en', { ascending: false })
-      .limit(limite);
+      .order('id', { ascending: false })
+      .range(desde, desde + limite - 1);
 
     if (error) throw new Error('No se pudo cargar el registro de actividad');
     return (data ?? []) as LogActividad[];

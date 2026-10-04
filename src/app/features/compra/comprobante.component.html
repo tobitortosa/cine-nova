@@ -14,8 +14,11 @@
             <div class="estados">
               @if (cancelada()) {
                 <span class="chip chip-peligro">Cancelada</span>
-              } @else if (utilizada()) {
+              } @else if (agotada()) {
                 <span class="chip estado-usada">Ya utilizada</span>
+              } @else if (utilizada()) {
+                <span class="chip estado-usada">Entrada utilizada</span>
+                <span class="chip estado-valida">Candy pendiente</span>
               } @else {
                 <span class="chip estado-valida">Válida</span>
               }
@@ -77,6 +80,8 @@
                   </span>
                 }
               </div>
+            } @else if (cancelada()) {
+              <p class="sin-datos">Las butacas se liberaron al cancelar la compra.</p>
             } @else {
               <p class="sin-datos">Esta compra no tiene butacas asociadas.</p>
             }
@@ -112,6 +117,13 @@
               <div class="linea descuento">
                 <span>Canje de puntos</span>
                 <span>- {{ r.compra.descuento_canjes | precio }}</span>
+              </div>
+            }
+
+            @if (descuentoCombos() > 0) {
+              <div class="linea descuento">
+                <span>Entradas incluidas en combos</span>
+                <span>- {{ descuentoCombos() | precio }}</span>
               </div>
             }
 
@@ -196,6 +208,10 @@
             @if (emitida()) {
               <p class="qr-fecha">Emitida el {{ emitida() }}</p>
             }
+
+            @if (email()) {
+              <p class="qr-fecha">Email de contacto: {{ email() }}</p>
+            }
           </section>
 
           @if (restriccion() > 0) {
@@ -210,15 +226,15 @@
 
           <aside class="aviso">
             <p>
-              Con este mismo QR ingresás a la sala y retirás tu pedido del candy bar. Es de un
-              solo uso: una vez validado deja de estar disponible.
+              Con este mismo QR ingresás a la sala y retirás tu pedido del candy bar. Cada uno
+              se valida una sola vez y la entrada sirve solo el día de la función.
             </p>
           </aside>
         </div>
 
         @if (cancelada()) {
           <span class="sello sello-cancelada" aria-hidden="true">Cancelada</span>
-        } @else if (utilizada()) {
+        } @else if (agotada()) {
           <span class="sello sello-utilizada" aria-hidden="true">Utilizada</span>
         }
       </article>
@@ -228,7 +244,7 @@
       <button
         type="button"
         class="btn btn-primario"
-        [disabled]="descargando()"
+        [disabled]="descargando() || cancelada()"
         (click)="descargar()"
       >
         @if (descargando()) {
@@ -239,13 +255,17 @@
       </button>
 
       <a class="btn btn-secundario" routerLink="/peliculas">Ver la cartelera</a>
-      <a class="btn btn-fantasma" routerLink="/candy">Ir al candy bar</a>
     </div>
 
     @if (cancelada()) {
       <p class="nota-estado peligro">
         Esta compra fue cancelada. El código ya no sirve para ingresar a la sala ni para
         retirar productos.
+      </p>
+    } @else if (utilizada() && candyPendiente()) {
+      <p class="nota-estado">
+        La entrada ya fue validada. Todavía podés retirar tu pedido del candy bar con este
+        mismo QR.
       </p>
     } @else if (utilizada()) {
       <p class="nota-estado">

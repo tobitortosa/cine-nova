@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, effect, input, model, signal } from '@angular/core';
+import { DIAS_CORTOS, DIAS_LARGOS, MESES } from '../utils/calendario';
 
 interface CeldaDia {
   clave: string;
@@ -19,14 +20,9 @@ export class SelectorFechaHoraComponent implements OnInit {
   readonly minimo = input<string>('');
   readonly etiqueta = input<string>('Fecha y hora');
 
-  readonly meses: string[] = [
-    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-  ];
-  readonly diasCortos: string[] = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-  readonly diasLargos: string[] = [
-    'domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado',
-  ];
+  readonly meses = MESES;
+  readonly diasCortos = DIAS_CORTOS;
+  readonly diasLargos = DIAS_LARGOS;
   readonly horas: number[] = Array.from({ length: 24 }, (_, i) => i);
   readonly minutos: number[] = Array.from({ length: 12 }, (_, i) => i * 5);
 

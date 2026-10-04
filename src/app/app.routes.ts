@@ -56,7 +56,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/empleado/validador.component').then(m => m.ValidadorComponent),
   },
   {
-    path: '**',
-    loadComponent: () => import('./features/home/no-encontrado.component').then(m => m.NoEncontradoComponent),
+    path: '',
+    loadComponent: () => import('./layout/layout-publico.component').then(m => m.LayoutPublicoComponent),
+    children: [
+      {
+        path: '**',
+        title: 'Página no encontrada · CineNova',
+        loadComponent: () => import('./features/home/no-encontrado.component').then(m => m.NoEncontradoComponent),
+      },
+    ],
   },
 ];

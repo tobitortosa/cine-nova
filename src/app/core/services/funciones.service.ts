@@ -4,6 +4,14 @@ import { Funcion, FormatoFuncion, IdiomaFuncion, Sala } from '../models/modelos'
 
 const CAMPOS_FUNCION = '*, pelicula:peliculas(*), sala:salas(*)';
 
+export interface CambiosFuncion {
+  formato: FormatoFuncion;
+  idioma: IdiomaFuncion;
+  precio_base: number;
+  precio_vip: number;
+  inicio?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class FuncionesService {
   private readonly supabase = inject(SupabaseService);
@@ -21,6 +29,16 @@ export class FuncionesService {
     }
 
     return (data ?? []) as Funcion[];
+  }
+
+  async empezoAlguna(peliculaId: number): Promise<boolean> {
+    const { count, error } = await this.supabase.client
+      .from('funciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('pelicula_id', peliculaId)
+      .lte('inicio', new Date().toISOString());
+
+    return !error && (count ?? 0) > 0;
   }
 
   async obtener(id: number): Promise<Funcion | null> {
@@ -71,7 +89,7 @@ export class FuncionesService {
   ): Promise<Funcion> {
     const { data, error } = await this.supabase.client.rpc('crear_funcion', {
       p_pelicula_id: peliculaId,
-      p_inicio: inicio,
+      p_inicio: this.aInstante(inicio).toISOString(),
       p_formato: formato,
       p_idioma: idioma,
       p_precio: precio,
@@ -153,11 +171,68 @@ export class FuncionesService {
     return { creadas, errores };
   }
 
+  async actualizar(funcion: Funcion, cambios: CambiosFuncion): Promise<void> {
+    const fila: Record<string, unknown> = {
+      formato: cambios.formato,
+      idioma: cambios.idioma,
+      precio_base: cambios.precio_base,
+      precio_vip: cambios.precio_vip,
+    };
+
+    if (cambios.inicio) {
+      const inicio = this.aInstante(cambios.inicio);
+      if (await this.hayReservasVigentes(funcion.id)) {
+        throw new Error(
+          'Hay personas eligiendo butacas para esta función, así que por ahora no se puede cambiar el horario. Probá de nuevo en unos minutos.',
+        );
+      }
+      const duracion = this.duracionEnMinutos(funcion);
+      fila['inicio'] = inicio.toISOString();
+      fila['fin'] = new Date(inicio.getTime() + duracion * 60000).toISOString();
+    }
+
+    const { data, error } = await this.supabase.client
+      .from('funciones')
+      .update(fila)
+      .eq('id', funcion.id)
+      .select('id');
+
+    if (error) {
+      throw new Error(
+        error.code === '23P01'
+          ? 'En ese horario la sala ya tiene otra función. Entre una función y la siguiente tiene que pasar media hora: elegí otro horario.'
+          : error.message || 'No se pudo actualizar la función',
+      );
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error('No se pudo actualizar la función. Recargá la página y volvé a intentar.');
+    }
+  }
+
+  async entradasVendidas(funcionId: number): Promise<number | null> {
+    const { count, error } = await this.supabase.client
+      .from('entradas')
+      .select('id', { count: 'exact', head: true })
+      .eq('funcion_id', funcionId)
+      .eq('activa', true);
+
+    if (error) {
+      return null;
+    }
+
+    return count ?? 0;
+  }
+
   async eliminar(id: number): Promise<void> {
     const { error } = await this.supabase.client.from('funciones').delete().eq('id', id);
 
     if (error) {
-      throw new Error(error.message || 'No se pudo eliminar la función');
+      throw new Error(
+        error.code === '23503'
+          ? 'La función tiene entradas asociadas y no se puede eliminar.'
+          : error.message || 'No se pudo eliminar la función',
+      );
     }
   }
 
@@ -192,8 +267,42 @@ export class FuncionesService {
     const { error } = await this.supabase.client.from('salas').delete().eq('id', id);
 
     if (error) {
-      throw new Error(error.message || 'No se pudo eliminar la sala');
+      throw new Error(
+        error.code === '23503'
+          ? 'La sala tiene funciones asociadas, aunque ya hayan pasado, y no se puede eliminar. Solo se pueden eliminar salas sin funciones.'
+          : error.message || 'No se pudo eliminar la sala',
+      );
     }
+  }
+
+  private async hayReservasVigentes(funcionId: number): Promise<boolean> {
+    const { count, error } = await this.supabase.client
+      .from('reservas')
+      .select('id', { count: 'exact', head: true })
+      .eq('funcion_id', funcionId)
+      .gt('expira_en', new Date().toISOString());
+
+    return !error && (count ?? 0) > 0;
+  }
+
+  private aInstante(texto: string): Date {
+    const momento = new Date(texto);
+
+    if (Number.isNaN(momento.getTime())) {
+      throw new Error('La fecha y hora de la función no son válidas');
+    }
+
+    return momento;
+  }
+
+  private duracionEnMinutos(funcion: Funcion): number {
+    const deLaPelicula = Number(funcion.pelicula?.duracion_min);
+    if (Number.isFinite(deLaPelicula) && deLaPelicula > 0) {
+      return deLaPelicula;
+    }
+
+    const guardada = (new Date(funcion.fin).getTime() - new Date(funcion.inicio).getTime()) / 60000;
+    return Number.isFinite(guardada) && guardada > 0 ? Math.round(guardada) : 120;
   }
 
   private aTextoLocal(fecha: Date): string {

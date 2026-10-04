@@ -3,19 +3,21 @@
   <p>Unos datos y listo: ya podés comprar entradas y juntar puntos.</p>
 </header>
 
-<div class="cupon">
-  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-    <path d="M3 8.2a1.4 1.4 0 0 0 1.4-1.4V5.6h15.2v1.2A1.4 1.4 0 0 0 21 8.2v2a2 2 0 0 0 0 3.6v2a1.4 1.4 0 0 0-1.4 1.4v1.2H4.4v-1.2A1.4 1.4 0 0 0 3 15.8v-2a2 2 0 0 0 0-3.6Z"
-          fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-    <path d="M9.4 14.6 14.6 9.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-    <circle cx="9.7" cy="9.7" r="1.1" fill="currentColor" />
-    <circle cx="14.3" cy="14.3" r="1.1" fill="currentColor" />
-  </svg>
-  <p>
-    Al crear tu cuenta te regalamos un <strong>cupón de 20% de descuento</strong>
-    para tu primera compra.
-  </p>
-</div>
+@if (cupon(); as bienvenida) {
+  <div class="cupon">
+    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+      <path d="M3 8.2a1.4 1.4 0 0 0 1.4-1.4V5.6h15.2v1.2A1.4 1.4 0 0 0 21 8.2v2a2 2 0 0 0 0 3.6v2a1.4 1.4 0 0 0-1.4 1.4v1.2H4.4v-1.2A1.4 1.4 0 0 0 3 15.8v-2a2 2 0 0 0 0-3.6Z"
+            fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+      <path d="M9.4 14.6 14.6 9.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      <circle cx="9.7" cy="9.7" r="1.1" fill="currentColor" />
+      <circle cx="14.3" cy="14.3" r="1.1" fill="currentColor" />
+    </svg>
+    <p>
+      Al crear tu cuenta te regalamos un <strong>cupón de {{ bienvenida.porcentaje }}% de descuento</strong>
+      para tu primera compra.
+    </p>
+  </div>
+}
 
 <form class="formulario" [formGroup]="formulario" (ngSubmit)="enviar()" novalidate>
   <div class="grilla">
@@ -88,23 +90,18 @@
       }
     </div>
 
-    <div class="campo">
+    <div class="campo ancho-total">
       <label for="fechaNacimiento">Fecha de nacimiento</label>
-      <input id="fechaNacimiento" type="date" formControlName="fechaNacimiento" [max]="hoy" />
+      <app-selector-fecha
+        id="fechaNacimiento"
+        modo="nacimiento"
+        etiqueta="Fecha de nacimiento"
+        formControlName="fechaNacimiento"
+        [maximo]="hoy" />
       @if (mostrarError('fechaNacimiento', 'required')) {
         <span class="error-campo">Ingresá tu fecha de nacimiento.</span>
-      }
-    </div>
-
-    <div class="campo">
-      <label for="diasVacaciones">Días de vacaciones por año</label>
-      <input id="diasVacaciones" type="number" formControlName="diasVacaciones" min="0" max="365" step="1" placeholder="14" />
-      @if (mostrarError('diasVacaciones', 'required')) {
-        <span class="error-campo">Ingresá tus días de vacaciones.</span>
-      } @else if (mostrarError('diasVacaciones', 'min')) {
-        <span class="error-campo">No puede ser menor a 0.</span>
-      } @else if (mostrarError('diasVacaciones', 'max')) {
-        <span class="error-campo">No puede superar los 365.</span>
+      } @else if (mostrarError('fechaNacimiento', 'futura')) {
+        <span class="error-campo">La fecha de nacimiento no puede ser futura.</span>
       }
     </div>
 
@@ -133,6 +130,20 @@
         <span class="error-campo">Elegí el color de tus ojos.</span>
       }
     </div>
+
+    <div class="campo ancho-total">
+      <label for="diasVacaciones">Días de vacaciones por año</label>
+      <input id="diasVacaciones" type="number" formControlName="diasVacaciones" min="0" max="365" step="1" inputmode="numeric" placeholder="14" />
+      @if (mostrarError('diasVacaciones', 'required')) {
+        <span class="error-campo">Ingresá tus días de vacaciones.</span>
+      } @else if (mostrarError('diasVacaciones', 'min')) {
+        <span class="error-campo">No puede ser menor a 0.</span>
+      } @else if (mostrarError('diasVacaciones', 'max')) {
+        <span class="error-campo">No puede superar los 365.</span>
+      } @else if (mostrarError('diasVacaciones', 'entero')) {
+        <span class="error-campo">Ingresá un número entero, sin decimales.</span>
+      }
+    </div>
   </div>
 
   <button class="btn btn-primario enviar" type="submit" [disabled]="formulario.invalid || enviando()">
@@ -147,5 +158,5 @@
 
 <p class="pie">
   ¿Ya tenés cuenta?
-  <a routerLink="/auth/login">Ingresá acá</a>
+  <a routerLink="/auth/login" queryParamsHandling="preserve">Ingresá acá</a>
 </p>

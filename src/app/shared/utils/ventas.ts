@@ -1,18 +1,20 @@
-import { Funcion, Pelicula, TipoButaca } from '../../core/models/modelos';
+import { Combo, Funcion, Pelicula, TipoButaca } from '../../core/models/modelos';
 
 export const DIAS_PREVENTA = 7;
 
-const ZONA_HORARIA = 'America/Argentina/Buenos_Aires';
+export const MAXIMO_BUTACAS = 10;
+
+export const ZONA_HORARIA = 'America/Argentina/Buenos_Aires';
 
 type DatosVenta = Pick<Pelicula, 'en_cartelera' | 'fecha_estreno' | 'precio_preventa'>;
 
-export function hoyLocal(): string {
+export function hoyLocal(momento = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: ZONA_HORARIA,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date());
+  }).format(momento);
 }
 
 export function sumarDias(fecha: string, dias: number): string {
@@ -61,4 +63,19 @@ export function precioEntrada(funcion: Funcion | null, tipo: TipoButaca, hoy = h
   }
 
   return tipo === 'vip' ? Number(funcion.precio_vip) : Number(funcion.precio_base);
+}
+
+export function funcionIniciada(inicio: string | null | undefined, ahora = Date.now()): boolean {
+  if (!inicio) return false;
+  const momento = Date.parse(inicio);
+  return !Number.isNaN(momento) && momento <= ahora;
+}
+
+export function entradasIncluidas(combo: Pick<Combo, 'entradas_incluidas'> | null | undefined): number {
+  const cantidad = Number(combo?.entradas_incluidas ?? 0);
+  return Number.isInteger(cantidad) && cantidad > 0 ? cantidad : 0;
+}
+
+export function entradasVendidas(cantidad: number): string {
+  return cantidad === 1 ? '1 entrada vendida' : `${cantidad} entradas vendidas`;
 }

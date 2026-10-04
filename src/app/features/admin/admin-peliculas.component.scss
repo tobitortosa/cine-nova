@@ -211,7 +211,7 @@
   background: var(--c-surface);
   border-left: 1px solid var(--c-border);
   box-shadow: var(--sh-lg);
-  animation: entrar-panel var(--t-slow) both;
+  animation: entrar-panel var(--t-slow) backwards;
 }
 
 @keyframes entrar-panel {

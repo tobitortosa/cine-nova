@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import { ResumenCompra } from '../models/modelos';
 import { textoMedioPago } from '../../shared/pipes/medio-pago.pipe';
+import { ZONA_HORARIA } from '../../shared/utils/ventas';
 
 const AMBAR: [number, number, number] = [201, 138, 28];
 const TINTA: [number, number, number] = [22, 22, 26];
@@ -11,6 +12,7 @@ const ROJO: [number, number, number] = [196, 42, 40];
 const VERDE: [number, number, number] = [30, 140, 92];
 const LADO_QR = 55;
 const SUFIJO_CANJE = /\s*\(canje\)$/i;
+const INICIO_PAGINA = 44;
 
 @Injectable({ providedIn: 'root' })
 export class PdfService {
@@ -25,6 +27,9 @@ export class PdfService {
   async generarEntrada(resumen: ResumenCompra): Promise<void> {
     const compra = resumen.compra;
     if (!compra?.codigo) throw new Error('La compra no tiene un código válido');
+    if (compra.estado === 'cancelada') {
+      throw new Error('La compra fue cancelada: la entrada ya no es válida');
+    }
 
     const imagenQr = await this.qr(compra.codigo);
 
@@ -37,7 +42,7 @@ export class PdfService {
     this.fondo(doc, ancho, alto);
     this.marca(doc, ancho, margen);
 
-    let y = 44;
+    let y = INICIO_PAGINA;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
@@ -65,14 +70,11 @@ export class PdfService {
 
     y = this.bloqueFuncion(doc, resumen, margen, util, y);
     y = this.bloqueButacas(doc, resumen, ancho, margen, y);
-    y = this.bloqueProductos(doc, resumen, ancho, margen, y);
-    y = this.bloqueTotales(doc, resumen, ancho, margen, y);
+    y = this.bloqueProductos(doc, resumen, ancho, alto, margen, y);
+    y = this.bloqueTotales(doc, resumen, ancho, alto, margen, y);
 
     if (y > alto - 118) {
-      doc.addPage();
-      this.fondo(doc, ancho, alto);
-      this.marca(doc, ancho, margen);
-      y = 44;
+      y = this.paginaNueva(doc, ancho, alto, margen);
     }
 
     const yBloque = Math.max(y + 4, alto - 112);
@@ -119,6 +121,25 @@ export class PdfService {
     this.pie(doc, ancho, alto, margen, util);
 
     doc.save(`entrada-${compra.codigo}.pdf`);
+  }
+
+  private paginaNueva(doc: jsPDF, ancho: number, alto: number, margen: number): number {
+    doc.addPage();
+    this.fondo(doc, ancho, alto);
+    this.marca(doc, ancho, margen);
+    return INICIO_PAGINA;
+  }
+
+  private salto(
+    doc: jsPDF,
+    y: number,
+    ancho: number,
+    alto: number,
+    margen: number,
+    necesario = 10,
+  ): number {
+    if (y + necesario <= alto - 34) return y;
+    return this.paginaNueva(doc, ancho, alto, margen);
   }
 
   private fondo(doc: jsPDF, ancho: number, alto: number): void {
@@ -249,15 +270,18 @@ export class PdfService {
     doc: jsPDF,
     resumen: ResumenCompra,
     ancho: number,
+    alto: number,
     margen: number,
     y: number,
   ): number {
     const items = resumen.items ?? [];
     if (items.length === 0) return y;
 
-    let cursor = this.titulo(doc, 'Candy bar', margen, y) + 3;
+    const inicio = this.salto(doc, y, ancho, alto, margen, 20);
+    let cursor = this.titulo(doc, 'Candy bar', margen, inicio) + 3;
 
     for (const item of items) {
+      cursor = this.salto(doc, cursor, ancho, alto, margen);
       const canje = Number(item.precio_unitario) === 0 && SUFIJO_CANJE.test(item.nombre);
       const nombre = canje ? item.nombre.replace(SUFIJO_CANJE, '') : item.nombre;
 
@@ -288,16 +312,12 @@ export class PdfService {
     doc: jsPDF,
     resumen: ResumenCompra,
     ancho: number,
+    alto: number,
     margen: number,
     y: number,
   ): number {
     const compra = resumen.compra;
-    let cursor = y;
-
-    doc.setDrawColor(228, 230, 238);
-    doc.setLineWidth(0.4);
-    doc.line(margen, cursor, ancho - margen, cursor);
-    cursor += 8;
+    const descuentoCombos = Number(compra.descuento_combos ?? 0);
 
     const lineas: { etiqueta: string; valor: string }[] = [
       { etiqueta: 'Subtotal', valor: this.moneda(compra.subtotal) },
@@ -305,12 +325,25 @@ export class PdfService {
     if (compra.descuento_canjes > 0) {
       lineas.push({ etiqueta: 'Canje de puntos', valor: `- ${this.moneda(compra.descuento_canjes)}` });
     }
+    if (descuentoCombos > 0) {
+      lineas.push({
+        etiqueta: 'Entradas incluidas en combos',
+        valor: `- ${this.moneda(descuentoCombos)}`,
+      });
+    }
     if (compra.descuento > 0) {
       lineas.push({ etiqueta: 'Descuento', valor: `- ${this.moneda(compra.descuento)}` });
     }
     if (compra.credito_usado > 0) {
       lineas.push({ etiqueta: 'Crédito usado', valor: `- ${this.moneda(compra.credito_usado)}` });
     }
+
+    let cursor = this.salto(doc, y, ancho, alto, margen, 40 + lineas.length * 6.4);
+
+    doc.setDrawColor(228, 230, 238);
+    doc.setLineWidth(0.4);
+    doc.line(margen, cursor, ancho - margen, cursor);
+    cursor += 8;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
@@ -360,7 +393,7 @@ export class PdfService {
     this.tinta(doc, SUAVE);
 
     const texto: string[] = doc.splitTextToSize(
-      'Mostrá este código QR para ingresar a la sala y para retirar tu pedido en el candy bar. Es de un solo uso: una vez validado deja de estar disponible.',
+      'Mostrá este código QR para ingresar a la sala y para retirar tu pedido en el candy bar. Cada uno se valida una sola vez y la entrada sirve solo el día de la función.',
       util,
     );
     doc.text(texto, margen, y + 6);
@@ -388,6 +421,7 @@ export class PdfService {
     const valor = new Date(iso);
     if (Number.isNaN(valor.getTime())) return 'A confirmar';
     return valor.toLocaleDateString('es-AR', {
+      timeZone: ZONA_HORARIA,
       weekday: 'short',
       day: '2-digit',
       month: '2-digit',
@@ -399,7 +433,11 @@ export class PdfService {
     if (!iso) return '--:--';
     const valor = new Date(iso);
     if (Number.isNaN(valor.getTime())) return '--:--';
-    return valor.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    return valor.toLocaleTimeString('es-AR', {
+      timeZone: ZONA_HORARIA,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   private fechaHora(iso: string | undefined): string {
@@ -407,6 +445,7 @@ export class PdfService {
     const valor = new Date(iso);
     if (Number.isNaN(valor.getTime())) return '-';
     return valor.toLocaleString('es-AR', {
+      timeZone: ZONA_HORARIA,
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

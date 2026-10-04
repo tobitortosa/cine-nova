@@ -78,13 +78,13 @@
               <a class="menu-item" routerLink="/cuenta/peliculas" (click)="cerrarTodo()" role="menuitem">Mis películas</a>
               <a class="menu-item" routerLink="/cuenta/puntos" (click)="cerrarTodo()" role="menuitem">Mis puntos</a>
 
-              @if (auth.esAdmin()) {
+              @if (auth.esEmpleado()) {
                 <div class="menu-separador"></div>
-                <a class="menu-item destacado" routerLink="/admin" (click)="cerrarTodo()" role="menuitem">
-                  Panel de administración
-                </a>
-              } @else if (auth.esEmpleado()) {
-                <div class="menu-separador"></div>
+                @if (auth.esAdmin()) {
+                  <a class="menu-item destacado" routerLink="/admin" (click)="cerrarTodo()" role="menuitem">
+                    Panel de administración
+                  </a>
+                }
                 <a class="menu-item destacado" routerLink="/empleado" (click)="cerrarTodo()" role="menuitem">
                   Validar entradas
                 </a>
@@ -97,8 +97,8 @@
         </div>
       } @else {
         <div class="sesion">
-          <a class="btn btn-fantasma" routerLink="/auth/login" (click)="cerrarTodo()">Ingresar</a>
-          <a class="btn btn-primario" routerLink="/auth/registro" (click)="cerrarTodo()">Crear cuenta</a>
+          <a class="btn btn-fantasma" routerLink="/auth/login" [queryParams]="volverA()" (click)="cerrarTodo()">Ingresar</a>
+          <a class="btn btn-primario" routerLink="/auth/registro" [queryParams]="volverA()" (click)="cerrarTodo()">Crear cuenta</a>
         </div>
       }
 
@@ -129,8 +129,8 @@
 
       @if (!auth.estaLogueado()) {
         <div class="sesion-movil">
-          <a class="btn btn-secundario" routerLink="/auth/login" (click)="cerrarTodo()">Ingresar</a>
-          <a class="btn btn-primario" routerLink="/auth/registro" (click)="cerrarTodo()">Crear cuenta</a>
+          <a class="btn btn-secundario" routerLink="/auth/login" [queryParams]="volverA()" (click)="cerrarTodo()">Ingresar</a>
+          <a class="btn btn-primario" routerLink="/auth/registro" [queryParams]="volverA()" (click)="cerrarTodo()">Crear cuenta</a>
         </div>
       }
     </nav>

@@ -86,7 +86,8 @@
                   <rect x="3" y="14" width="7" height="7" rx="1.5" />
                   <path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4" />
                 </svg>
-                <p>Apuntá al código QR de la entrada</p>
+                <p>{{ ayudaReposo() }}</p>
+                <span class="modo-activo" [class.candy]="modo() === 'candy'">Modo: {{ etiquetaModo() }}</span>
               </div>
             } @else {
               <div class="mira" aria-hidden="true"></div>
@@ -110,10 +111,8 @@
 
           @if (camaraBloqueada()) {
             <div class="aviso-camara anim-aparecer" role="alert">
-              <p class="titulo-aviso">No tenemos permiso para usar la cámara</p>
-              <p class="texto-aviso">
-                Habilitá la cámara desde los ajustes del navegador o validá el código a mano.
-              </p>
+              <p class="titulo-aviso">{{ textosCamara().titulo }}</p>
+              <p class="texto-aviso">{{ textosCamara().texto }}</p>
               <button type="button" class="accion secundaria" (click)="cambiarPestania('manual')">
                 Cargar código a mano
               </button>
@@ -133,14 +132,16 @@
               class="codigo"
               formControlName="codigo"
               (input)="normalizar($event)"
-              placeholder="CN-000000"
+              placeholder="Ej: 89465B49E8E8"
               autocomplete="off"
               autocapitalize="characters"
               spellcheck="false"
             />
 
             @if (formulario.controls.codigo.touched && formulario.controls.codigo.invalid) {
-              <p class="error-campo">Escribí el código completo que figura en la entrada.</p>
+              <p class="error-campo">
+                El código tiene 12 caracteres: números del 0 al 9 y letras de la A a la F.
+              </p>
             }
 
             <button type="submit" class="accion iniciar" [disabled]="validando()">
@@ -221,6 +222,10 @@
             }
           </dl>
 
+          @if (avisoCandy()) {
+            <p class="aviso-fecha" role="note">{{ avisoCandy() }}</p>
+          }
+
           @if (productos().length) {
             <div class="productos">
               <p class="rotulo-productos">Productos</p>
@@ -236,6 +241,9 @@
           }
         } @else {
           <p class="motivo">{{ motivoResultado() }}</p>
+          @if (esOtroDia()) {
+            <p class="pista-resultado">Pedile al cliente que vuelva el día de su función.</p>
+          }
         }
 
         <button type="button" class="accion otro" (click)="validarOtro()">Validar otro</button>

@@ -156,6 +156,7 @@
 
                   <div class="cuerpo">
                     <h3 class="nombre">{{ combo.nombre }}</h3>
+                    <span class="chip" [class.chip-accent]="entradasDe(combo) > 0">{{ textoEntradas(combo) }}</span>
 
                     @if (combo.descripcion) {
                       <p class="descripcion">{{ combo.descripcion }}</p>
@@ -301,6 +302,18 @@
               <input id="combo-precio" type="number" min="0" step="50" formControlName="precio" />
               @if (formCombo.controls.precio.touched && formCombo.controls.precio.invalid) {
                 <span class="error-campo">Ingresá un precio mayor o igual a cero.</span>
+              }
+            </div>
+
+            <div class="campo">
+              <label for="combo-entradas">Entradas incluidas</label>
+              <input id="combo-entradas" type="number" min="0" max="10" step="1" inputmode="numeric" formControlName="entradas_incluidas" />
+              <small class="ayuda">
+                Cuántas entradas trae el combo. Al comprarlo se descuenta el precio estándar de esa cantidad de entradas;
+                si la butaca elegida es VIP se paga la diferencia. Dejalo en 0 si el combo es solo de candy.
+              </small>
+              @if (formCombo.controls.entradas_incluidas.touched && formCombo.controls.entradas_incluidas.invalid) {
+                <span class="error-campo">Ingresá un número entero entre 0 y 10.</span>
               }
             </div>
 

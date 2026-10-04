@@ -14,7 +14,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { ButacasService } from '../../core/services/butacas.service';
 import { CandyService } from '../../core/services/candy.service';
-import { CarritoService } from '../../core/services/carrito.service';
+import { CarritoService, TOPE_UNIDADES } from '../../core/services/carrito.service';
 import { ComprasService } from '../../core/services/compras.service';
 import { FuncionesService } from '../../core/services/funciones.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
@@ -36,6 +36,7 @@ import {
   TipoButaca,
 } from '../../core/models/modelos';
 import { CargandoComponent } from '../../shared/components/cargando.component';
+import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ButacaPipe } from '../../shared/pipes/butaca.pipe';
 import { DuracionPipe } from '../../shared/pipes/duracion.pipe';
@@ -43,7 +44,11 @@ import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import {
   DIAS_PREVENTA,
+  MAXIMO_BUTACAS,
+  entradasIncluidas,
   finDePreventa,
+  funcionIniciada,
+  hoyLocal,
   precioEntrada,
   preventaVigente,
   sumarDias,
@@ -119,6 +124,7 @@ interface VistaTarjeta {
 interface MontosCompra {
   subtotal: number;
   canjes: number;
+  combos: number;
   descuento: number;
   credito: number;
   total: number;
@@ -138,20 +144,31 @@ interface FotoCompra {
   total: number;
 }
 
-const MAXIMO_BUTACAS = 10;
-const SEGUNDOS_RESERVA = 480;
+const DEMORA_RECARGA = 250;
+const INTERVALO_SONDEO = 15000;
 const TITULAR_DE_EJEMPLO = 'Lucía Fernández';
 const LARGO_MAXIMO_CVV = 4;
+const EMAIL_COMPLETO = /^[^@\s]+@[^@\s]+\.[^@\s.]{2,}$/;
 
 const VENTA_CERRADA = 'La venta para esta película todavía no abrió';
 const DEBITO_SIN_AMEX = 'Para débito aceptamos Visa o Mastercard';
 const TOTAL_ACTUALIZADO = 'Actualizamos el total de tu compra, revisalo y confirmá de nuevo.';
 const TOTAL_CAMBIADO = 'El total cambió';
 const VENTA_NO_ABIERTA = 'todavía no está abierta';
-const BUTACA_PERDIDA = 'Una de tus butacas se vendió mientras confirmabas. Revisá tu selección antes de pagar.';
+const YA_COMENZO = 'ya comenzó';
+const SIN_CONEXION = 'No pudimos comunicarnos';
+const FUNCION_COMENZADA = 'La función ya comenzó. Elegí otro horario para comprar tus entradas.';
+const BUTACA_PERDIDA =
+  'Una de tus butacas dejó de estar disponible mientras confirmabas. Revisá tu selección antes de pagar.';
 const PAGO_ANULADO = 'Anulamos el pago simulado: no se te cobró nada.';
-const BUTACA_VENDIDA =
-  'Una de tus butacas se vendió mientras pagabas. Anulamos el pago simulado: no se te cobró nada.';
+const COMPRA_INCIERTA = 'No pudimos confirmar si tu compra se registró';
+const BUTACA_NO_DISPONIBLE =
+  'Una de tus butacas dejó de estar disponible mientras pagabas. Anulamos el pago simulado: no se te cobró nada.';
+const EXCESO_ENTRADAS = 'Tus combos y canjes incluyen más entradas que las butacas elegidas';
+const COMBO_SIN_LUGAR =
+  'Para sumar este combo elegí más butacas: cada entrada que incluye ocupa una de tus butacas.';
+const BIENVENIDA_USADA = 'Ya usaste el cupón de bienvenida';
+const SOLO_PRIMERA_COMPRA = 'El cupón de bienvenida es solo para tu primera compra';
 
 function aCentavos(monto: number | null | undefined): number {
   return Math.round(Number(monto ?? 0) * 100);
@@ -177,6 +194,7 @@ const FALTANTES: Record<CampoTarjeta, string> = {
     RouterLink,
     ReactiveFormsModule,
     CargandoComponent,
+    SelectorFechaComponent,
     VacioComponent,
     ButacaPipe,
     DuracionPipe,
@@ -215,9 +233,14 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
   readonly tarjetasDePrueba: TarjetaDePrueba[] = this.pasarela.tarjetasDePrueba;
 
+  readonly topeUnidades = TOPE_UNIDADES;
+  readonly hoy = hoyLocal();
+  readonly mensajeExceso = EXCESO_ENTRADAS;
+
   readonly paso = signal(1);
   readonly cargando = signal(true);
   readonly ventaCerrada = signal(false);
+  readonly funcionComenzada = signal(false);
   readonly funcion = signal<Funcion | null>(null);
   readonly butacasSala = signal<Butaca[]>([]);
   readonly estados = signal<Map<number, EstadoVisual>>(new Map());
@@ -244,7 +267,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
   readonly emailDeCuenta = signal(false);
 
   readonly formulario = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required, Validators.email, Validators.pattern(EMAIL_COMPLETO)]],
     fechaNacimiento: [''],
     cupon: [''],
     usarCredito: [false],
@@ -265,10 +288,25 @@ export class ComprarComponent implements OnInit, OnDestroy {
   private funcionId = 0;
   private canal: RealtimeChannel | null = null;
   private temporizador: ReturnType<typeof setInterval> | null = null;
+  private espera: ReturnType<typeof setTimeout> | null = null;
+  private sondeo: ReturnType<typeof setInterval> | null = null;
   private readonly vigilantes = new Subscription();
   private destruido = false;
   private vencimientoPendiente = false;
+  private venceEn = 0;
+  private reservadas: Butaca[] = [];
+  private reservaIncierta = false;
+  private colaReservas: Promise<unknown> = Promise.resolve();
+  private pedidosEstado = 0;
+  private estadoAplicado = 0;
   private cargaCatalogo: Promise<boolean> | null = null;
+
+  private readonly alCambiarVisibilidad = (): void => {
+    if (this.destruido || document.visibilityState !== 'visible') return;
+    if (this.temporizador !== null) this.tic();
+    if (this.revisarInicio()) return;
+    this.programarRecarga();
+  };
 
   readonly filas = computed<FilaVista[]>(() => {
     const mapa = this.estados();
@@ -376,11 +414,23 @@ export class ComprarComponent implements OnInit, OnDestroy {
     () => new Map(this.productos().map((producto) => [producto.id, producto.nombre])),
   );
 
+  private readonly entradasPorCombo = computed(
+    () => new Map(this.combos().map((combo) => [combo.id, entradasIncluidas(combo)])),
+  );
+
+  readonly entradasEnCombos = computed(() =>
+    this.carrito.items().reduce((suma, item) => suma + this.entradasDeItem(item), 0),
+  );
+
+  readonly cupoCanjesEntrada = computed(() =>
+    Math.max(0, this.carrito.butacas().length - this.entradasEnCombos()),
+  );
+
   readonly canjesAplicados = computed<Canje[]>(() => {
     if (!this.auth.estaLogueado()) return [];
 
     const elegidos = new Set(this.canjesElegidos());
-    let cupo = this.carrito.butacas().length;
+    let cupo = this.cupoCanjesEntrada();
 
     return this.canjes().filter((canje) => {
       if (!elegidos.has(canje.codigo)) return false;
@@ -406,7 +456,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
     if (!this.auth.estaLogueado()) return [];
 
     const aplicados = new Set(this.canjesAplicados().map((canje) => canje.codigo));
-    const sinCupo = this.entradasCanjeadas() >= this.carrito.butacas().length;
+    const sinCupo = this.entradasCanjeadas() >= this.cupoCanjesEntrada();
     const nombres = this.nombresProductos();
 
     return this.canjes().map((canje) => {
@@ -424,6 +474,10 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
   readonly hayEntradasBloqueadas = computed(() => this.canjesVista().some((vista) => vista.bloqueado));
 
+  readonly excesoEntradas = computed(
+    () => this.entradasEnCombos() + this.entradasCanjeadas() > this.carrito.butacas().length,
+  );
+
   private readonly montos = computed<MontosCompra>(() => {
     const logueado = this.auth.estaLogueado();
 
@@ -434,19 +488,18 @@ export class ComprarComponent implements OnInit, OnDestroy {
       .items()
       .reduce((suma, item) => suma + item.cantidad * aCentavos(item.precio_unitario), 0);
     const subtotal = entradas + productos;
+    const estandar = aCentavos(this.carrito.precioEstandar());
 
-    const canjes = Math.min(
-      this.entradasCanjeadas() * aCentavos(this.carrito.precioEstandar()),
-      entradas,
-    );
+    const canjes = Math.min(this.entradasCanjeadas() * estandar, entradas);
+    const combos = Math.min(this.entradasEnCombos() * estandar, entradas - canjes);
 
     const cupon = this.cuponAplicado();
     const descuento =
       cupon && logueado
-        ? Math.round(((subtotal - canjes) * aCentavos(cupon.porcentaje)) / 10000)
+        ? Math.round(((subtotal - canjes - combos) * aCentavos(cupon.porcentaje)) / 10000)
         : 0;
 
-    const antesDelCredito = Math.max(0, subtotal - canjes - descuento);
+    const antesDelCredito = Math.max(0, subtotal - canjes - combos - descuento);
     const credito =
       this.creditoActivo() && logueado
         ? Math.max(0, Math.min(aCentavos(this.creditoDisponible()), antesDelCredito))
@@ -455,6 +508,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
     return {
       subtotal,
       canjes,
+      combos,
       descuento,
       credito,
       total: Math.max(0, antesDelCredito - credito),
@@ -464,6 +518,10 @@ export class ComprarComponent implements OnInit, OnDestroy {
   readonly subtotal = computed(() => this.montos().subtotal / 100);
 
   readonly descuentoCanjes = computed(() => this.montos().canjes / 100);
+
+  readonly descuentoCombos = computed(() => this.montos().combos / 100);
+
+  readonly subtotalConCombos = computed(() => (this.montos().subtotal - this.montos().combos) / 100);
 
   readonly descuento = computed(() => this.montos().descuento / 100);
 
@@ -559,6 +617,16 @@ export class ComprarComponent implements OnInit, OnDestroy {
         return;
       }
 
+      if (funcionIniciada(funcion.inicio)) {
+        this.funcionComenzada.set(true);
+        return;
+      }
+
+      const anterior = this.carrito.funcion();
+      if (anterior && anterior.id !== funcion.id && this.carrito.butacas().length > 0) {
+        void this.encolar(() => this.mapaButacas.liberar().catch(() => undefined));
+      }
+
       this.carrito.setFuncion(funcion);
 
       const butacas = await this.mapaButacas.porSala(funcion.sala_id);
@@ -569,13 +637,11 @@ export class ComprarComponent implements OnInit, OnDestroy {
       if (this.destruido) return;
 
       if (this.carrito.butacas().length > 0) {
-        await this.sincronizarReserva();
+        await this.sincronizarReserva(true);
         if (this.destruido) return;
       }
 
-      const canal = this.mapaButacas.escuchar(id, () => {
-        void this.cargarEstado();
-      });
+      const canal = this.mapaButacas.escuchar(id, () => this.programarRecarga());
 
       if (this.destruido) {
         void this.mapaButacas.dejarDeEscuchar(canal);
@@ -583,6 +649,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }
 
       this.canal = canal;
+      this.iniciarSeguimiento();
     } catch (e) {
       if (!this.destruido) {
         this.avisos.error(e instanceof Error ? e.message : 'No pudimos cargar la función');
@@ -598,6 +665,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destruido = true;
     this.detenerCuenta();
+    this.detenerSeguimiento();
     this.vigilantes.unsubscribe();
     this.vigilanteTarjeta.destroy();
     this.grupoTarjeta.reset();
@@ -608,8 +676,13 @@ export class ComprarComponent implements OnInit, OnDestroy {
     }
   }
 
-  irAPaso(numero: number): void {
+  async irAPaso(numero: number): Promise<void> {
     if (numero === this.paso() || this.procesando()) return;
+
+    if (numero > this.paso()) {
+      await this.colaReservas;
+      if (this.destruido || numero === this.paso() || this.procesando()) return;
+    }
 
     if (this.paso() === 3) {
       this.limpiarPago();
@@ -618,6 +691,16 @@ export class ComprarComponent implements OnInit, OnDestroy {
     if (numero > 1 && this.carrito.butacas().length === 0) {
       this.avisos.error('Elegí al menos una butaca para continuar');
       this.paso.set(1);
+      return;
+    }
+
+    if (numero === 3 && this.excesoEntradas()) {
+      this.avisos.error(EXCESO_ENTRADAS);
+      if (this.paso() !== 2) {
+        void this.sincronizarCatalogo();
+        this.paso.set(2);
+        this.subirArriba();
+      }
       return;
     }
 
@@ -684,9 +767,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
   }
 
   cantidadDe(productoId: number | null, comboId: number | null): number {
-    const indice = this.indiceDe(productoId, comboId);
-    if (indice < 0) return 0;
-    return this.carrito.items()[indice]?.cantidad ?? 0;
+    return this.carrito.cantidadDe(productoId, comboId);
   }
 
   agregarProducto(producto: Producto): void {
@@ -701,6 +782,11 @@ export class ComprarComponent implements OnInit, OnDestroy {
   }
 
   agregarCombo(combo: Combo): void {
+    if (!this.puedeSumarCombo(combo)) {
+      this.avisos.error(COMBO_SIN_LUGAR);
+      return;
+    }
+
     this.carrito.agregarProducto({
       producto_id: null,
       combo_id: combo.id,
@@ -716,7 +802,43 @@ export class ComprarComponent implements OnInit, OnDestroy {
     if (indice < 0) return;
 
     const actual = this.carrito.items()[indice]?.cantidad ?? 0;
+
+    if (delta > 0) {
+      if (actual >= TOPE_UNIDADES) return;
+
+      const combo = comboId !== null ? this.combos().find((opcion) => opcion.id === comboId) : undefined;
+      if (combo && !this.puedeSumarCombo(combo)) {
+        this.avisos.error(COMBO_SIN_LUGAR);
+        return;
+      }
+    }
+
     this.carrito.cambiarCantidad(indice, actual + delta);
+  }
+
+  entradasDe(combo: Combo): number {
+    return entradasIncluidas(combo);
+  }
+
+  entradasDeItem(item: ItemCarrito): number {
+    if (item.combo_id === null) return 0;
+    return item.cantidad * (this.entradasPorCombo().get(item.combo_id) ?? 0);
+  }
+
+  puedeSumarCombo(combo: Combo): boolean {
+    const incluidas = entradasIncluidas(combo);
+    return incluidas === 0 || this.entradasEnCombos() + incluidas <= this.carrito.butacas().length;
+  }
+
+  errorEmail(): string | null {
+    const control = this.formulario.controls.email;
+    if (!control.touched || !control.invalid) return null;
+    if (control.hasError('required')) return 'Escribí tu email para enviarte las entradas';
+    return 'Revisá el email: tiene que ser como nombre@dominio.com';
+  }
+
+  urlActual(): string {
+    return this.router.url;
   }
 
   async aplicarCupon(): Promise<void> {
@@ -741,8 +863,10 @@ export class ComprarComponent implements OnInit, OnDestroy {
         throw new Error('El cupón no es válido o ya no está activo');
       }
 
-      if (encontrado.tipo === 'bienvenida' && this.auth.perfil()?.cupon_bienvenida_usado) {
-        throw new Error('Ya usaste el cupón de bienvenida');
+      if (encontrado.tipo === 'bienvenida') {
+        const motivo = await this.motivoSinBienvenida();
+        if (this.destruido || this.procesando()) return;
+        if (motivo) throw new Error(motivo);
       }
 
       if (encontrado.tipo === 'edad') {
@@ -860,6 +984,11 @@ export class ComprarComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.excesoEntradas()) {
+      this.avisos.error(EXCESO_ENTRADAS);
+      return;
+    }
+
     this.errorPago.set(null);
     this.ajustarGrupoTarjeta();
     this.formulario.markAllAsTouched();
@@ -906,10 +1035,44 @@ export class ComprarComponent implements OnInit, OnDestroy {
         return;
       }
 
+      if (funcionIniciada(this.funcion()?.inicio)) {
+        this.marcarComenzada();
+        this.avisos.error(FUNCION_COMENZADA);
+        return;
+      }
+
+      const rechazo = await this.sincronizarReserva(true);
+      if (this.destruido) return;
+
+      if (rechazo !== null) {
+        this.errorPago.set(rechazo);
+        return;
+      }
+
+      await this.cargarEstado();
+      if (this.destruido) return;
+
       if (!this.mismasButacas(butacasAlConfirmar)) {
         this.errorPago.set(BUTACA_PERDIDA);
         this.avisos.error(BUTACA_PERDIDA);
         return;
+      }
+
+      if (this.excesoEntradas()) {
+        this.avisos.error(EXCESO_ENTRADAS);
+        return;
+      }
+
+      if (this.cuponAplicado()?.tipo === 'bienvenida' && this.descuento() > 0) {
+        const motivo = await this.motivoSinBienvenida();
+        if (this.destruido) return;
+
+        if (motivo) {
+          this.quitarCupon();
+          this.errorPago.set(motivo);
+          this.avisos.error(motivo);
+          return;
+        }
       }
 
       if (aCentavos(this.total()) !== totalEnPantalla) {
@@ -923,7 +1086,10 @@ export class ComprarComponent implements OnInit, OnDestroy {
         butacas: butacasAlConfirmar,
         items: this.carrito.items().map((item) => ({ ...item })),
         email: valores.email.trim(),
-        cupon: this.auth.estaLogueado() ? (this.cuponAplicado()?.codigo ?? null) : null,
+        cupon:
+          this.auth.estaLogueado() && this.descuento() > 0
+            ? (this.cuponAplicado()?.codigo ?? null)
+            : null,
         usarCredito: this.creditoUsado(),
         canjes: this.canjesAplicados().map((canje) => canje.codigo),
         fechaNacimiento: valores.fechaNacimiento || null,
@@ -959,8 +1125,8 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
         if (!this.mismasButacas(foto.butacas)) {
           this.fasePago.set(null);
-          this.errorPago.set(BUTACA_VENDIDA);
-          this.avisos.error(BUTACA_VENDIDA);
+          this.errorPago.set(BUTACA_NO_DISPONIBLE);
+          this.avisos.error(BUTACA_NO_DISPONIBLE);
           return;
         }
 
@@ -982,6 +1148,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
       });
 
       this.vencimientoPendiente = false;
+      this.reservadas = [];
       this.grupoTarjeta.reset();
       this.canjesElegidos.set([]);
       this.canjes.set([]);
@@ -1012,17 +1179,33 @@ export class ComprarComponent implements OnInit, OnDestroy {
       await this.router.navigate(['/compra', compra.codigo]);
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : 'No pudimos registrar la compra';
+      const incierta = mensaje.includes(COMPRA_INCIERTA);
+      this.fasePago.set(null);
       this.errorPago.set(mensaje);
       this.avisos.error(mensaje);
 
-      if (pago) {
+      if (pago && !incierta) {
         this.avisos.info(PAGO_ANULADO);
       }
 
       if (this.destruido) return;
 
+      if (incierta) {
+        this.vencimientoPendiente = false;
+        this.reservadas = [];
+        this.carrito.limpiarButacas();
+        this.detenerCuenta();
+        await this.cargarEstado(true);
+        return;
+      }
+
       if (mensaje.includes(VENTA_NO_ABIERTA)) {
         this.cerrarVenta();
+        return;
+      }
+
+      if (mensaje.includes(YA_COMENZO)) {
+        this.marcarComenzada();
         return;
       }
 
@@ -1057,15 +1240,35 @@ export class ComprarComponent implements OnInit, OnDestroy {
   }
 
   private mismasButacas(ids: number[]): boolean {
-    const actuales = new Set(this.carrito.butacas().map((butaca) => butaca.id));
-    return actuales.size === ids.length && ids.every((id) => actuales.has(id));
+    return this.mismoConjunto(ids, this.carrito.butacas());
   }
 
   private cerrarVenta(): void {
     this.ventaCerrada.set(true);
     this.detenerCuenta();
+    this.detenerSeguimiento();
     this.limpiarPago();
     this.avisos.error(VENTA_CERRADA);
+  }
+
+  private marcarComenzada(): void {
+    this.funcionComenzada.set(true);
+    this.detenerCuenta();
+    this.detenerSeguimiento();
+    this.limpiarPago();
+    this.reservadas = [];
+    this.carrito.limpiarButacas();
+  }
+
+  private revisarInicio(): boolean {
+    if (this.procesando() || !funcionIniciada(this.funcion()?.inicio)) return false;
+    this.marcarComenzada();
+    return true;
+  }
+
+  private async motivoSinBienvenida(): Promise<string | null> {
+    if (this.auth.perfil()?.cupon_bienvenida_usado) return BIENVENIDA_USADA;
+    return (await this.auth.tieneCompraPagada()) ? SOLO_PRIMERA_COMPRA : null;
   }
 
   private restaurarFormulario(): void {
@@ -1206,30 +1409,82 @@ export class ComprarComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async cargarEstado(): Promise<void> {
-    if (!this.funcionId) return;
+  private iniciarSeguimiento(): void {
+    document.addEventListener('visibilitychange', this.alCambiarVisibilidad);
+    this.sondeo = setInterval(() => this.sondear(), INTERVALO_SONDEO);
+  }
+
+  private detenerSeguimiento(): void {
+    document.removeEventListener('visibilitychange', this.alCambiarVisibilidad);
+
+    if (this.sondeo !== null) {
+      clearInterval(this.sondeo);
+      this.sondeo = null;
+    }
+
+    if (this.espera !== null) {
+      clearTimeout(this.espera);
+      this.espera = null;
+    }
+  }
+
+  private sondear(): void {
+    if (this.destruido || document.visibilityState === 'hidden') return;
+    if (this.revisarInicio()) return;
+    if (this.reservaIncierta) void this.sincronizarReserva(true);
+    void this.cargarEstado(true);
+  }
+
+  private programarRecarga(): void {
+    if (this.destruido || this.funcionComenzada() || this.ventaCerrada()) return;
+
+    if (this.espera !== null) {
+      clearTimeout(this.espera);
+    }
+
+    this.espera = setTimeout(() => {
+      this.espera = null;
+      void this.cargarEstado(true);
+    }, DEMORA_RECARGA);
+  }
+
+  private async cargarEstado(silencioso = false): Promise<void> {
+    if (!this.funcionId || this.destruido) return;
+
+    const pedido = ++this.pedidosEstado;
 
     try {
       const filas = await this.mapaButacas.estado(this.funcionId);
-      if (this.destruido) return;
+      if (this.destruido || pedido <= this.estadoAplicado) return;
+      this.estadoAplicado = pedido;
 
       const mapa = new Map<number, EstadoVisual>();
 
       for (const fila of filas) {
-        mapa.set(fila.butaca_id, fila.estado);
+        if (mapa.get(fila.butaca_id) !== 'vendida') {
+          mapa.set(fila.butaca_id, fila.estado);
+        }
       }
 
       this.estados.set(mapa);
       this.depurarSeleccion(mapa);
     } catch (e) {
-      if (this.destruido) return;
+      if (this.destruido || silencioso || pedido <= this.estadoAplicado) return;
       this.avisos.error(
         e instanceof Error ? e.message : 'No pudimos actualizar el estado de las butacas',
       );
     }
   }
 
+  private descartarEstadosEnCurso(): void {
+    this.estadoAplicado = this.pedidosEstado;
+  }
+
   private depurarSeleccion(mapa: Map<number, EstadoVisual>): void {
+    if (this.fasePago() === 'registro') return;
+
+    this.reservadas = this.reservadas.filter((butaca) => !mapa.has(butaca.id));
+
     const perdidas = this.carrito.butacas().filter((butaca) => mapa.has(butaca.id));
     if (perdidas.length === 0) return;
 
@@ -1247,48 +1502,105 @@ export class ComprarComponent implements OnInit, OnDestroy {
     );
   }
 
-  private async sincronizarReserva(): Promise<void> {
-    if (!this.funcionId || this.destruido) return;
+  private encolar<T>(tarea: () => Promise<T>): Promise<T> {
+    const resultado = this.colaReservas.then(tarea);
+    this.colaReservas = resultado.catch(() => undefined);
+    return resultado;
+  }
 
-    const ids = this.carrito.butacas().map((butaca) => butaca.id);
+  private sincronizarReserva(forzar = false): Promise<string | null> {
+    return this.encolar(() => this.reservarSeleccion(forzar));
+  }
+
+  private async reservarSeleccion(forzar: boolean): Promise<string | null> {
+    if (!this.funcionId || this.destruido || this.funcionComenzada() || this.ventaCerrada()) {
+      return null;
+    }
+
+    const seleccion = this.carrito.butacas();
+    const ids = seleccion.map((butaca) => butaca.id);
+
+    if (!forzar && !this.reservaIncierta && this.mismoConjunto(ids, this.reservadas)) return null;
+
+    const desde = Date.now();
 
     try {
-      await this.mapaButacas.reservar(this.funcionId, ids);
-      if (this.destruido) return;
-      this.reiniciarCuenta(ids.length > 0);
+      const segundos = await this.mapaButacas.reservar(this.funcionId, ids);
+      if (this.destruido) return null;
+
+      this.reservaIncierta = false;
+      this.reservadas = seleccion;
+      this.descartarEstadosEnCurso();
+      this.reiniciarCuenta(ids.length > 0, segundos, desde);
+      this.programarRecarga();
+      return null;
     } catch (e) {
-      if (this.destruido) return;
-      this.avisos.error(e instanceof Error ? e.message : 'No pudimos reservar esas butacas');
-      await this.cargarEstado();
+      const mensaje = e instanceof Error ? e.message : 'No pudimos reservar esas butacas';
+      if (this.destruido) return mensaje;
+      if (mensaje.includes(SIN_CONEXION)) this.reservaIncierta = true;
+
+      this.revertirSeleccion(ids);
+      this.avisos.error(mensaje);
+
+      if (mensaje.includes(YA_COMENZO)) {
+        this.marcarComenzada();
+      } else if (mensaje.includes(VENTA_NO_ABIERTA)) {
+        this.cerrarVenta();
+      } else {
+        await this.cargarEstado();
+      }
+
+      return mensaje;
     }
   }
 
-  private reiniciarCuenta(activa: boolean): void {
+  private revertirSeleccion(pedidas: number[]): void {
+    const vigentes = this.temporizador !== null ? this.reservadas : [];
+    const enPedido = new Set(pedidas);
+    const confirmadas = new Set(vigentes.map((butaca) => butaca.id));
+    const agregadas = new Set(pedidas.filter((id) => !confirmadas.has(id)));
+    const quitadas = vigentes.filter((butaca) => !enPedido.has(butaca.id));
+
+    this.carrito.butacas.update((lista) => {
+      const sinAgregadas = lista.filter((butaca) => !agregadas.has(butaca.id));
+      const presentes = new Set(sinAgregadas.map((butaca) => butaca.id));
+      return [...sinAgregadas, ...quitadas.filter((butaca) => !presentes.has(butaca.id))];
+    });
+
+    if (this.carrito.butacas().length === 0) {
+      this.detenerCuenta();
+    }
+  }
+
+  private mismoConjunto(ids: number[], butacas: Butaca[]): boolean {
+    const conjunto = new Set(butacas.map((butaca) => butaca.id));
+    return conjunto.size === ids.length && ids.every((id) => conjunto.has(id));
+  }
+
+  private reiniciarCuenta(activa: boolean, segundos = 0, desde = Date.now()): void {
     this.detenerCuenta();
     this.vencimientoPendiente = false;
 
-    if (!activa) {
-      this.segundos.set(0);
+    if (!activa) return;
+
+    this.venceEn = desde + segundos * 1000;
+    this.temporizador = setInterval(() => this.tic(), 1000);
+    this.tic();
+  }
+
+  private tic(): void {
+    const restante = Math.max(0, Math.ceil((this.venceEn - Date.now()) / 1000));
+    this.segundos.set(restante);
+    if (restante > 0) return;
+
+    this.detenerCuenta();
+
+    if (this.procesando()) {
+      this.vencimientoPendiente = true;
       return;
     }
 
-    this.segundos.set(SEGUNDOS_RESERVA);
-
-    this.temporizador = setInterval(() => {
-      const restante = this.segundos() - 1;
-      this.segundos.set(Math.max(0, restante));
-
-      if (restante <= 0) {
-        this.detenerCuenta();
-
-        if (this.procesando()) {
-          this.vencimientoPendiente = true;
-          return;
-        }
-
-        this.vencerReserva();
-      }
-    }, 1000);
+    this.vencerReserva();
   }
 
   private vencerReserva(): void {
@@ -1297,6 +1609,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
     this.limpiarPago();
     this.paso.set(1);
     this.avisos.info('Se venció el tiempo de reserva. Elegí las butacas otra vez.');
+    void this.sincronizarReserva();
     void this.cargarEstado();
   }
 
@@ -1396,11 +1709,10 @@ export class ComprarComponent implements OnInit, OnDestroy {
     if (partes.length !== 3 || partes.some((numero) => !Number.isFinite(numero))) return null;
 
     const [anio, mes, dia] = partes;
-    const hoy = new Date();
+    const [anioHoy, mesHoy, diaHoy] = hoyLocal().split('-').map(Number);
 
-    let anios = hoy.getFullYear() - anio;
-    const mesActual = hoy.getMonth() + 1;
-    if (mesActual < mes || (mesActual === mes && hoy.getDate() < dia)) anios--;
+    let anios = anioHoy - anio;
+    if (mesHoy < mes || (mesHoy === mes && diaHoy < dia)) anios--;
 
     return anios >= 0 ? anios : null;
   }

@@ -1,8 +1,12 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ComprasService } from '../../core/services/compras.service';
-import { ReseniasService } from '../../core/services/resenias.service';
+import {
+  LARGO_MAXIMO_RESENIA,
+  ReseniasService,
+  TEXTO_LARGO_RESENIA,
+} from '../../core/services/resenias.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { MiPelicula } from '../../core/models/modelos';
 import { CargandoComponent } from '../../shared/components/cargando.component';
@@ -38,13 +42,25 @@ export class MisPeliculasComponent implements OnInit {
   readonly puntaje = signal(0);
   readonly guardando = signal(false);
   readonly buscandoResenia = signal(false);
+  readonly largo = signal(0);
+
+  readonly maximo = LARGO_MAXIMO_RESENIA;
 
   readonly formulario = this.fb.nonNullable.group({
-    comentario: [''],
+    comentario: ['', [Validators.maxLength(LARGO_MAXIMO_RESENIA)]],
   });
 
   readonly calificadas = computed(
-    () => this.lista().filter((pelicula) => pelicula.estrellas !== null).length,
+    () =>
+      new Set(
+        this.lista()
+          .filter((pelicula) => pelicula.estrellas !== null)
+          .map((pelicula) => pelicula.pelicula_id),
+      ).size,
+  );
+
+  readonly peliculasDistintas = computed(
+    () => new Set(this.lista().map((pelicula) => pelicula.pelicula_id)).size,
   );
 
   private readonly formatoFecha = new Intl.DateTimeFormat('es-AR', {
@@ -85,14 +101,17 @@ export class MisPeliculasComponent implements OnInit {
     this.editando.set(pelicula);
     this.puntaje.set(pelicula.estrellas ?? 0);
     this.formulario.setValue({ comentario: '' });
+    this.largo.set(0);
     this.buscandoResenia.set(true);
 
     try {
       const resenia = await this.resenias.miResenia(pelicula.pelicula_id);
 
       if (resenia && this.editando()?.pelicula_id === pelicula.pelicula_id) {
+        const comentario = (resenia.comentario ?? '').slice(0, LARGO_MAXIMO_RESENIA);
         this.puntaje.set(resenia.estrellas);
-        this.formulario.setValue({ comentario: resenia.comentario ?? '' });
+        this.formulario.setValue({ comentario });
+        this.largo.set(comentario.length);
       }
     } catch {
       this.avisos.info('No pudimos recuperar tu reseña anterior, podés escribirla de nuevo');
@@ -107,6 +126,11 @@ export class MisPeliculasComponent implements OnInit {
     this.editando.set(null);
     this.puntaje.set(0);
     this.formulario.setValue({ comentario: '' });
+    this.largo.set(0);
+  }
+
+  alEscribirComentario(evento: Event): void {
+    this.largo.set((evento.target as HTMLTextAreaElement).value.length);
   }
 
   async guardarResenia(): Promise<void> {
@@ -115,6 +139,11 @@ export class MisPeliculasComponent implements OnInit {
 
     if (this.puntaje() < 1) {
       this.avisos.error('Elegí al menos una estrella para calificar');
+      return;
+    }
+
+    if (this.formulario.invalid) {
+      this.avisos.error(TEXTO_LARGO_RESENIA);
       return;
     }
 

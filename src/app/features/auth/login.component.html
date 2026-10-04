@@ -3,6 +3,19 @@
   <p>Entrá a tu cuenta para comprar entradas, sumar puntos y revivir tus películas.</p>
 </header>
 
+@if (emailPorActivar(); as email) {
+  <div class="activacion" role="status">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <rect x="3" y="5.5" width="18" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6" />
+      <path d="M4 7.5 12 13l8-5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+    </svg>
+    <p>
+      Te enviamos un correo a <strong>{{ email }}</strong> para activar tu cuenta.
+      Abrí el enlace del correo y después ingresá con tu email y tu contraseña.
+    </p>
+  </div>
+}
+
 <form class="formulario" [formGroup]="formulario" (ngSubmit)="enviar()" novalidate>
   <div class="campo">
     <label for="email">Email</label>
@@ -70,5 +83,11 @@
 
 <p class="pie">
   ¿Todavía no tenés cuenta?
-  <a routerLink="/auth/registro">Creá una y llevate un 20% de descuento</a>
+  <a routerLink="/auth/registro" queryParamsHandling="preserve">
+    @if (cupon(); as bienvenida) {
+      Creá una y llevate un {{ bienvenida.porcentaje }}% de descuento
+    } @else {
+      Creá una en un minuto
+    }
+  </a>
 </p>

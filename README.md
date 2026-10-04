@@ -132,7 +132,9 @@ PostgreSQL manda los correos directamente a la API de Brevo con `pg_net`, sin se
 
 ### Disponibilidad de butacas en tiempo real
 
-Cuando un usuario abre el mapa de una función, el componente se suscribe por Supabase Realtime a los cambios de `entradas` y `reservas`. Mientras selecciona butacas, el sistema inserta reservas temporales con vencimiento de ocho minutos asociadas a un identificador de sesión guardado en `localStorage`. Los demás usuarios ven esas butacas como ocupadas al instante, y si alguien abandona la compra las reservas vencen solas.
+Cuando un usuario abre el mapa de una función, el componente se suscribe por Supabase Realtime a los cambios de `entradas` y `reservas`. Mientras selecciona butacas, el sistema inserta reservas temporales con vencimiento de ocho minutos asociadas a un identificador de sesión guardado en `sessionStorage` (uno por pestaña). Los demás usuarios ven esas butacas como ocupadas al instante, y si alguien abandona la compra las reservas vencen solas.
+
+Limitación conocida: las reservas son anónimas y el tope de 10 butacas es por sesión, así que un script con muchas sesiones podría mantener ocupada una sala. En un sistema real se resolvería con límites por IP en el gateway o exigiendo cuenta para reservar.
 
 ### El QR es uno solo, con dos estados de consumo
 
@@ -159,8 +161,9 @@ Los scripts están en `supabase/` y se ejecutan en orden:
 | `05_auditoria.sql` | Log de actividad por triggers |
 | `06_usuarios_demo.sql` | Cuentas de prueba |
 | `07_correos.sql` | Envío de correos y apertura automática de ventas |
+| `08_correcciones.sql` | Correcciones: reservas con vencimiento fijo, combos con entradas, permisos, reseñas, reportes por día local y control de envíos de Brevo |
 
-Cada script es idempotente: se puede volver a ejecutar sin romper nada.
+Cada script es idempotente: se puede volver a ejecutar sin romper nada. El 08 reemplaza funciones, triggers y permisos de los anteriores: si se vuelve a correr alguno de ellos, después hay que correr el 08 otra vez. Conviene correrlo sin usuarios en la app; si se corta por un interbloqueo, se vuelve a correr.
 
 Para que los correos salgan hay que cargar una sola vez, desde el SQL Editor, la clave de la API de Brevo y una dirección de remitente verificada en Brevo:
 
@@ -168,6 +171,8 @@ Para que los correos salgan hay que cargar una sola vez, desde el SQL Editor, la
 update configuracion set valor = 'xkeysib-...' where clave = 'brevo_api_key';
 update configuracion set valor = 'remitente@verificado.com' where clave = 'correo_remitente';
 ```
+
+Cada hora el mismo job revisa la respuesta de Brevo: si rechazó un envío, el correo queda como `fallido` en la tabla `correos` con el detalle del error. Las alertas de estreno recién se marcan como avisadas cuando el correo se pudo encolar.
 
 ### Modelo de sala
 

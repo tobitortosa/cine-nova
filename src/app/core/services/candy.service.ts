@@ -110,35 +110,46 @@ export class CandyService {
   }
 
   async eliminarProducto(id: number): Promise<void> {
+    await this.verificarProductoLibre(id);
+
     const { error } = await this.supabase.client.from('productos').delete().eq('id', id);
 
     if (error) {
-      throw new Error(error.message || 'No se pudo eliminar el producto');
+      throw new Error(
+        error.code === '23503'
+          ? 'Ese producto tiene canjes o recompensas asociados: desactivalo en lugar de borrarlo.'
+          : error.message || 'No se pudo eliminar el producto',
+      );
     }
   }
 
   async crearCombo(datos: Partial<Combo>): Promise<Combo> {
-    const { data, error } = await this.supabase.client
-      .from('combos')
-      .insert(this.limpiarCombo(datos))
-      .select('*')
-      .single();
+    let fila = this.limpiarCombo(datos);
+    let respuesta = await this.supabase.client.from('combos').insert(fila).select('*').single();
 
-    if (error) {
-      throw new Error(error.message || 'No se pudo crear el combo');
+    if (respuesta.error && this.faltaColumnaEntradas(respuesta.error)) {
+      fila = this.sinEntradasIncluidas(fila);
+      respuesta = await this.supabase.client.from('combos').insert(fila).select('*').single();
     }
 
-    return data as Combo;
+    if (respuesta.error) {
+      throw new Error(respuesta.error.message || 'No se pudo crear el combo');
+    }
+
+    return respuesta.data as Combo;
   }
 
   async actualizarCombo(id: number, datos: Partial<Combo>): Promise<void> {
-    const { error } = await this.supabase.client
-      .from('combos')
-      .update(this.limpiarCombo(datos))
-      .eq('id', id);
+    let fila = this.limpiarCombo(datos);
+    let respuesta = await this.supabase.client.from('combos').update(fila).eq('id', id);
 
-    if (error) {
-      throw new Error(error.message || 'No se pudo actualizar el combo');
+    if (respuesta.error && this.faltaColumnaEntradas(respuesta.error)) {
+      fila = this.sinEntradasIncluidas(fila);
+      respuesta = await this.supabase.client.from('combos').update(fila).eq('id', id);
+    }
+
+    if (respuesta.error) {
+      throw new Error(respuesta.error.message || 'No se pudo actualizar el combo');
     }
   }
 
@@ -160,6 +171,50 @@ export class CandyService {
   private limpiarCombo(datos: Partial<Combo>): Partial<Combo> {
     const copia: Partial<Combo> = { ...datos };
     delete copia.id;
+    if (copia.entradas_incluidas !== undefined) {
+      const cantidad = Math.floor(Number(copia.entradas_incluidas));
+      copia.entradas_incluidas = Number.isFinite(cantidad) ? Math.min(10, Math.max(0, cantidad)) : 0;
+    }
     return copia;
+  }
+
+  private faltaColumnaEntradas(error: { message?: string }): boolean {
+    return (error.message ?? '').includes('entradas_incluidas');
+  }
+
+  private sinEntradasIncluidas(fila: Partial<Combo>): Partial<Combo> {
+    if ((fila.entradas_incluidas ?? 0) > 0) {
+      throw new Error(
+        'Todavía no se pueden guardar combos con entradas incluidas: falta actualizar la base de datos. Guardalo con 0 entradas por ahora.',
+      );
+    }
+    const copia: Partial<Combo> = { ...fila };
+    delete copia.entradas_incluidas;
+    return copia;
+  }
+
+  private async verificarProductoLibre(id: number): Promise<void> {
+    const [canjes, recompensas] = await Promise.all([
+      this.supabase.client
+        .from('canjes')
+        .select('id', { count: 'exact', head: true })
+        .eq('producto_id', id)
+        .eq('usado', false),
+      this.supabase.client
+        .from('recompensas')
+        .select('id', { count: 'exact', head: true })
+        .eq('producto_id', id)
+        .eq('activo', true),
+    ]);
+
+    if (!canjes.error && (canjes.count ?? 0) > 0) {
+      throw new Error('Ese producto tiene canjes pendientes: desactivalo en lugar de borrarlo.');
+    }
+
+    if (!recompensas.error && (recompensas.count ?? 0) > 0) {
+      throw new Error(
+        'Ese producto es parte de una recompensa activa: desactivalo en lugar de borrarlo, o primero desactivá la recompensa.',
+      );
+    }
   }
 }

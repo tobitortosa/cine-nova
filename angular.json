@@ -75,7 +75,8 @@
               "xlsx",
               "dompurify",
               "raf",
-              "rgbcolor"
+              "rgbcolor",
+              "core-js"
             ]
           },
           "configurations": {

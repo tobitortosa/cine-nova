@@ -10,10 +10,35 @@ import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { MedioPagoPipe } from '../../shared/pipes/medio-pago.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { ZONA_HORARIA } from '../../shared/utils/ventas';
 
 type IconoPago = 'tarjeta' | 'billetera' | 'regalo' | 'desconocido';
 
 const SUFIJO_CANJE = /\s*\(canje\)$/i;
+
+function enmascararEmail(email: string | null | undefined): string {
+  const limpio = (email ?? '').trim();
+  if (!limpio || limpio.includes('•')) return limpio;
+
+  const arroba = limpio.indexOf('@');
+  if (arroba <= 0) return '••••';
+
+  const usuario = limpio.slice(0, arroba);
+  const visible = usuario.length > 2 ? usuario.slice(0, 2) : usuario.slice(0, 1);
+  return `${visible}••••${limpio.slice(arroba)}`;
+}
+
+function resguardar(resumen: ResumenCompra | null): ResumenCompra | null {
+  if (!resumen?.compra) return resumen;
+  return {
+    ...resumen,
+    compra: {
+      ...resumen.compra,
+      usuario_id: null,
+      email_contacto: enmascararEmail(resumen.compra.email_contacto),
+    },
+  };
+}
 
 @Component({
   selector: 'app-comprobante',
@@ -43,8 +68,16 @@ export class ComprobanteComponent implements OnInit {
 
   readonly cancelada = computed(() => this.resumen()?.compra.estado === 'cancelada');
   readonly utilizada = computed(() => this.resumen()?.compra.entrada_validada === true);
-  readonly atenuada = computed(() => this.cancelada() || this.utilizada());
+  readonly candyPendiente = computed(
+    () =>
+      (this.resumen()?.items.length ?? 0) > 0 &&
+      this.resumen()?.compra.productos_entregados !== true,
+  );
+  readonly agotada = computed(() => this.utilizada() && !this.candyPendiente());
+  readonly atenuada = computed(() => this.cancelada() || this.agotada());
   readonly restriccion = computed(() => this.resumen()?.pelicula?.restriccion_edad ?? 0);
+  readonly descuentoCombos = computed(() => Number(this.resumen()?.compra.descuento_combos ?? 0));
+  readonly email = computed(() => this.resumen()?.compra.email_contacto ?? '');
 
   readonly items = computed(() =>
     (this.resumen()?.items ?? []).map((item) => {
@@ -77,6 +110,7 @@ export class ComprobanteComponent implements OnInit {
       return 'Fecha a confirmar';
     }
     const texto = momento.toLocaleDateString('es-AR', {
+      timeZone: ZONA_HORARIA,
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -90,7 +124,11 @@ export class ComprobanteComponent implements OnInit {
     if (!momento) {
       return 'A confirmar';
     }
-    return momento.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    return momento.toLocaleTimeString('es-AR', {
+      timeZone: ZONA_HORARIA,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   });
 
   readonly idiomaFuncion = computed(() => {
@@ -111,6 +149,7 @@ export class ComprobanteComponent implements OnInit {
       return '';
     }
     return momento.toLocaleString('es-AR', {
+      timeZone: ZONA_HORARIA,
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -129,7 +168,7 @@ export class ComprobanteComponent implements OnInit {
     }
 
     try {
-      const encontrada = await this.compras.buscarPorCodigo(codigo);
+      const encontrada = resguardar(await this.compras.buscarPorCodigo(codigo));
       this.resumen.set(encontrada);
 
       if (encontrada?.compra?.codigo) {

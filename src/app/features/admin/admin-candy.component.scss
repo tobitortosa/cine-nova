@@ -424,6 +424,13 @@
   line-height: 1.45;
 }
 
+.campo .ayuda {
+  display: block;
+  color: var(--c-text-faint);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
 .panel-pie {
   display: flex;
   gap: 10px;

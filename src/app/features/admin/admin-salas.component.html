@@ -86,7 +86,8 @@
         <p class="aclaracion">
           Todas las salas se arman igual: 20 filas de la A a la T, con bloques laterales de 4
           butacas y un bloque central de 20. Las filas <strong>J</strong> y <strong>K</strong> son
-          accesibles y las filas <strong>R</strong>, <strong>S</strong> y <strong>T</strong> son VIP.
+          accesibles, con bloques de 2, 10 y 2 butacas, y las filas <strong>R</strong>,
+          <strong>S</strong> y <strong>T</strong> son VIP. En total, 532 butacas por sala.
         </p>
 
         <div class="pantalla">PANTALLA</div>
@@ -96,8 +97,8 @@
             <div class="fila-mapa">
               <span class="letra">{{ letra }}</span>
 
-              <div class="bloque">
-                @for (numero of bloqueLateral; track numero) {
+              <div class="bloque lateral">
+                @for (numero of lateral(letra); track numero) {
                   <span
                     class="butaca"
                     [class.vip]="esVip(letra)"
@@ -106,7 +107,7 @@
               </div>
 
               <div class="bloque centro">
-                @for (numero of bloqueCentral; track numero) {
+                @for (numero of central(letra); track numero) {
                   <span
                     class="butaca"
                     [class.vip]="esVip(letra)"
@@ -114,8 +115,8 @@
                 }
               </div>
 
-              <div class="bloque">
-                @for (numero of bloqueLateral; track numero) {
+              <div class="bloque lateral">
+                @for (numero of lateral(letra); track numero) {
                   <span
                     class="butaca"
                     [class.vip]="esVip(letra)"

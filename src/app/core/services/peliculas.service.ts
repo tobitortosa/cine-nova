@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { Genero, Pelicula, PeliculaVendida } from '../models/modelos';
+import { hoyLocal } from '../../shared/utils/ventas';
 
 const CAMPOS_PELICULA = '*, peliculas_generos(generos(*)), resenias(estrellas)';
 
@@ -76,7 +77,7 @@ export class PeliculasService {
       .from('peliculas')
       .select(CAMPOS_PELICULA)
       .eq('en_cartelera', false)
-      .not('fecha_estreno', 'is', null)
+      .gte('fecha_estreno', hoyLocal())
       .order('fecha_estreno', { ascending: true });
 
     if (error) {
@@ -137,17 +138,39 @@ export class PeliculasService {
       .eq('id', id);
 
     if (error) {
-      throw new Error(error.message || 'No se pudo actualizar la película');
+      throw new Error(
+        error.code === '23P01'
+          ? 'Con la nueva duración alguna función se superpone con otra de la misma sala. Reprogramá esas funciones antes de cambiarla.'
+          : error.message || 'No se pudo actualizar la película',
+      );
     }
 
     await this.sincronizarGeneros(id, generoIds);
+  }
+
+  async entradasVendidas(peliculaId: number): Promise<number | null> {
+    const { count, error } = await this.supabase.client
+      .from('entradas')
+      .select('id, funciones!inner(pelicula_id)', { count: 'exact', head: true })
+      .eq('activa', true)
+      .eq('funciones.pelicula_id', peliculaId);
+
+    if (error) {
+      return null;
+    }
+
+    return count ?? 0;
   }
 
   async eliminar(id: number): Promise<void> {
     const { error } = await this.supabase.client.from('peliculas').delete().eq('id', id);
 
     if (error) {
-      throw new Error(error.message || 'No se pudo eliminar la película');
+      throw new Error(
+        error.code === '23503'
+          ? 'La película tiene ventas asociadas y no se puede eliminar. Sacala de cartelera en lugar de borrarla.'
+          : error.message || 'No se pudo eliminar la película',
+      );
     }
   }
 

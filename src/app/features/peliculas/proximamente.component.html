@@ -3,7 +3,7 @@
     <p class="sobretitulo">Agenda CineNova</p>
     <h1>Próximamente</h1>
     <p class="bajada">
-      Lo que se viene a nuestras salas. Activá la campana y te avisamos el día del estreno.
+      Lo que se viene a nuestras salas. Activá la campana y te avisamos por correo cuando abra la venta.
     </p>
 
     @if (!cargando() && conPreventa() > 0) {
@@ -34,7 +34,7 @@
               <img
                 [src]="pelicula.banner_url ?? pelicula.imagen_url"
                 [alt]="'Imagen de ' + pelicula.titulo"
-                loading="lazy" />
+                [attr.loading]="$first ? 'eager' : 'lazy'" />
             } @else {
               <span class="sin-imagen" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
@@ -56,28 +56,30 @@
                 <span class="chip">{{ pelicula.duracion_min | duracion }}</span>
               </div>
 
-              <button
-                type="button"
-                class="campana"
-                [class.activa]="tieneAlerta(pelicula.id)"
-                [disabled]="procesando() === pelicula.id"
-                [attr.aria-pressed]="tieneAlerta(pelicula.id)"
-                [attr.aria-label]="
-                  tieneAlerta(pelicula.id)
-                    ? 'Desactivar alerta de ' + pelicula.titulo
-                    : 'Activar alerta de ' + pelicula.titulo
-                "
-                (click)="alternarAlerta(pelicula)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M18 8.5a6 6 0 10-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5z" />
-                  <path d="M13.7 20a2 2 0 01-3.4 0" />
-                </svg>
-                @if (tieneAlerta(pelicula.id)) {
-                  Alerta activa
-                } @else {
-                  Avisarme
-                }
-              </button>
+              @if (ofrecerAlerta(pelicula)) {
+                <button
+                  type="button"
+                  class="campana"
+                  [class.activa]="tieneAlerta(pelicula.id)"
+                  [disabled]="procesando() === pelicula.id"
+                  [attr.aria-pressed]="tieneAlerta(pelicula.id)"
+                  [attr.aria-label]="
+                    tieneAlerta(pelicula.id)
+                      ? 'Desactivar alerta de ' + pelicula.titulo
+                      : 'Activar alerta de ' + pelicula.titulo
+                  "
+                  (click)="alternarAlerta(pelicula)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 8.5a6 6 0 10-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5z" />
+                    <path d="M13.7 20a2 2 0 01-3.4 0" />
+                  </svg>
+                  @if (tieneAlerta(pelicula.id)) {
+                    Alerta activa
+                  } @else {
+                    Avisarme
+                  }
+                </button>
+              }
             </div>
 
             <h2>
@@ -109,6 +111,21 @@
                     [routerLink]="['/peliculas', pelicula.id]"
                     fragment="funciones">
                     Comprar en preventa
+                  </a>
+                </div>
+              </div>
+            } @else if (ventaYaAbierta(pelicula)) {
+              <div class="preventa">
+                <div class="texto-preventa">
+                  <strong>Venta abierta</strong>
+                  <p>Ya podés elegir función y butacas.</p>
+                </div>
+                <div class="compra-preventa">
+                  <a
+                    class="btn btn-primario"
+                    [routerLink]="['/peliculas', pelicula.id]"
+                    fragment="funciones">
+                    Comprar entradas
                   </a>
                 </div>
               </div>

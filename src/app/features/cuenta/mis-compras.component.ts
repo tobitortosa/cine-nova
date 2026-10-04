@@ -59,11 +59,18 @@ export class MisComprasComponent implements OnInit {
     year: 'numeric',
   });
 
+  private readonly formatoNumero = new Intl.NumberFormat('es-AR');
+
   readonly textoConfirmacion = computed(() => {
     const compra = this.elegida();
     if (!compra) return '';
 
-    return `Vas a cancelar la compra ${compra.codigo}. El importe se te devuelve como crédito en tu cuenta de CineNova para usar en próximas compras, no como dinero.`;
+    const base = `Vas a cancelar la compra ${compra.codigo}. El importe se te devuelve como crédito en tu cuenta de CineNova para usar en próximas compras, no como dinero.`;
+    const puntos = compra.puntos_ganados ?? 0;
+    if (puntos <= 0) return base;
+
+    const cantidad = puntos === 1 ? '1 punto' : `${this.formatoNumero.format(puntos)} puntos`;
+    return `${base} También se te descuentan los ${cantidad} que sumaste con esta compra.`;
   });
 
   async ngOnInit(): Promise<void> {
@@ -157,18 +164,30 @@ export class MisComprasComponent implements OnInit {
   }
 
   puedeCancelar(compra: Compra): boolean {
-    if (compra.estado !== 'pagada' || compra.entrada_validada) return false;
+    if (compra.estado !== 'pagada' || compra.entrada_validada || compra.productos_entregados) return false;
 
     const inicio = compra.funcion?.inicio;
-    if (!inicio) return false;
+    if (!inicio) return true;
 
     const marca = new Date(inicio).getTime();
-    if (Number.isNaN(marca)) return false;
+    if (Number.isNaN(marca)) return true;
 
     return marca - Date.now() > MARGEN_CANCELACION_MS;
   }
 
-  pedirCancelacion(compra: Compra): void {
+  async pedirCancelacion(compra: Compra): Promise<void> {
+    if (this.cancelando()) return;
+
+    const puntos = compra.puntos_ganados ?? 0;
+    if (puntos > 0) {
+      await this.auth.refrescarPerfil().catch(() => undefined);
+      const disponibles = this.auth.perfil()?.puntos;
+      if (disponibles !== undefined && disponibles < puntos) {
+        this.avisos.error('Ya usaste los puntos que sumaste con esta compra, por eso no se puede cancelar');
+        return;
+      }
+    }
+
     this.elegida.set(compra);
     this.confirmando.set(true);
   }

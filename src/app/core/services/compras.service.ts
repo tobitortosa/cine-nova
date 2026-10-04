@@ -10,6 +10,9 @@ import {
   ResumenCompra,
 } from '../models/modelos';
 
+const SIN_CONEXION_COMPRA =
+  'No pudimos confirmar si tu compra se registró por un problema de conexión. Revisá tu correo o Mis compras antes de volver a intentar.';
+
 @Injectable({ providedIn: 'root' })
 export class ComprasService {
   private readonly supabase = inject(SupabaseService);
@@ -27,7 +30,7 @@ export class ComprasService {
     pago?: DatosPago | null;
     totalEsperado?: number | null;
   }): Promise<Compra> {
-    const { data, error } = await this.supabase.client.rpc('registrar_compra', {
+    const { data, error, status } = await this.supabase.client.rpc('registrar_compra', {
       p_funcion_id: datos.funcionId,
       p_butacas: datos.butacas,
       p_items: datos.items.map((item) => ({
@@ -50,7 +53,9 @@ export class ComprasService {
     });
 
     if (error) {
-      throw new Error(error.message || 'No se pudo registrar la compra');
+      throw new Error(
+        status === 0 ? SIN_CONEXION_COMPRA : error.message || 'No se pudo registrar la compra',
+      );
     }
 
     const compra = Array.isArray(data) ? data[0] : data;

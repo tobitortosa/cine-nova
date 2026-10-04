@@ -9,7 +9,7 @@ import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { EstrellasComponent } from '../../shared/components/estrellas.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
-import { diasHasta, preventaVigente } from '../../shared/utils/ventas';
+import { diasHasta, entradasVendidas, preventaVigente } from '../../shared/utils/ventas';
 
 interface Estreno {
   pelicula: Pelicula;
@@ -18,8 +18,15 @@ interface Estreno {
   preventa: boolean;
 }
 
+interface Diapositiva {
+  pelicula: Pelicula;
+  puesto: number | null;
+  vendidas: number;
+}
+
 const ROTACION_MS = 7000;
 const LARGO_SINOPSIS = 240;
+const TOPE_DESTACADAS = 5;
 
 @Component({
   selector: 'app-home',
@@ -49,17 +56,35 @@ export class HomeComponent implements OnInit, OnDestroy {
   readonly esqueletos: number[] = [1, 2, 3, 4, 5, 6];
   readonly esqueletosCortos: number[] = [1, 2, 3];
 
-  readonly destacadas = computed<Pelicula[]>(() => {
+  readonly diapositivas = computed<Diapositiva[]>(() => {
     const lista = this.cartelera();
-    const marcadas = lista.filter((pelicula) => pelicula.destacada);
-    return marcadas.length > 0 ? marcadas.slice(0, 5) : lista.slice(0, 3);
+    const porId = new Map(lista.map((pelicula) => [pelicula.id, pelicula]));
+
+    const ranking: Diapositiva[] = [];
+    this.vendidas().forEach((fila, posicion) => {
+      const pelicula = porId.get(fila.pelicula_id);
+      if (pelicula) ranking.push({ pelicula, puesto: posicion + 1, vendidas: fila.vendidas });
+    });
+
+    const incluidas = new Set(ranking.map((diapositiva) => diapositiva.pelicula.id));
+    const marcadas = lista
+      .filter((pelicula) => pelicula.destacada && !incluidas.has(pelicula.id))
+      .slice(0, TOPE_DESTACADAS);
+    const respaldo = ranking.length === 0 && marcadas.length === 0 ? lista.slice(0, 3) : [];
+
+    return [
+      ...ranking,
+      ...[...marcadas, ...respaldo].map((pelicula) => ({ pelicula, puesto: null, vendidas: 0 })),
+    ];
   });
 
-  readonly heroe = computed<Pelicula | null>(() => {
-    const lista = this.destacadas();
+  readonly actual = computed<Diapositiva | null>(() => {
+    const lista = this.diapositivas();
     if (lista.length === 0) return null;
     return lista[this.indice() % lista.length];
   });
+
+  readonly heroe = computed<Pelicula | null>(() => this.actual()?.pelicula ?? null);
 
   readonly heroeLista = computed<Pelicula[]>(() => {
     const actual = this.heroe();
@@ -91,7 +116,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     try {
       const [cartelera, vendidas, proximos, combos] = await Promise.all([
         this.peliculas.listar({ enCartelera: true }),
-        this.peliculas.masVendidas(3, 30),
+        this.peliculas.masVendidas(3, 30).catch((): PeliculaVendida[] => []),
         this.peliculas.proximosEstrenos(),
         this.candy.combos(true),
       ]);
@@ -135,9 +160,30 @@ export class HomeComponent implements OnInit, OnDestroy {
     return limpio.length > 0 ? limpio.charAt(0).toUpperCase() : '?';
   }
 
+  encabezado(diapositiva: Diapositiva): string {
+    if (diapositiva.puesto === 1) return 'La más vendida';
+    if (diapositiva.puesto !== null) return `Top ${diapositiva.puesto} en ventas`;
+    return diapositiva.pelicula.destacada ? 'Destacada' : 'En cartelera';
+  }
+
+  textoVendidas(vendidas: number): string {
+    return entradasVendidas(Number(vendidas) || 0);
+  }
+
+  textoVentas(vendidas: number): string {
+    return `${this.textoVendidas(vendidas)} en los últimos 30 días`;
+  }
+
+  etiquetaIndicador(diapositiva: Diapositiva): string {
+    const titulo = diapositiva.pelicula.titulo;
+    return diapositiva.puesto !== null
+      ? `Ver ${titulo}, puesto ${diapositiva.puesto} en ventas`
+      : `Ver ${titulo}`;
+  }
+
   private arrancarRotacion(): void {
     this.detenerRotacion();
-    if (this.destacadas().length < 2) return;
+    if (this.diapositivas().length < 2) return;
     this.temporizador = setInterval(() => this.avanzar(), ROTACION_MS);
   }
 
@@ -149,7 +195,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private avanzar(): void {
-    const total = this.destacadas().length;
+    const total = this.diapositivas().length;
     if (total < 2) return;
     this.indice.update((actual) => (actual + 1) % total);
   }

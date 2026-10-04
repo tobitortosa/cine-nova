@@ -1,15 +1,17 @@
 import { Component, ElementRef, OnDestroy, computed, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { AuthService } from '../../core/services/auth.service';
 import { ComprasService } from '../../core/services/compras.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { ResultadoValidacion } from '../../core/models/modelos';
 import { AvisosComponent } from '../../shared/components/avisos.component';
+import { ZONA_HORARIA, hoyLocal } from '../../shared/utils/ventas';
 
 type ModoValidacion = 'entrada' | 'candy';
 type PestaniaIngreso = 'escanear' | 'manual';
+type ProblemaCamara = 'permiso' | 'sin-camara' | 'ocupada' | 'no-soportada';
 
 interface RegistroValidacion {
   id: number;
@@ -27,6 +29,66 @@ interface ProductoValidado {
 
 const ID_LECTOR = 'lector-qr';
 const TOPE_HISTORIAL = 25;
+const CLAVE_MODO = 'cinenova_validador_modo';
+const FORMATO_CODIGO = /^[0-9A-F]{12}$/;
+const OTRO_DIA = /^(La entrada|El pedido) es para /i;
+
+const TEXTOS_CAMARA: Record<ProblemaCamara, { titulo: string; texto: string }> = {
+  permiso: {
+    titulo: 'No tenemos permiso para usar la cámara',
+    texto: 'Habilitá la cámara desde los ajustes del navegador o validá el código a mano.',
+  },
+  'sin-camara': {
+    titulo: 'No encontramos una cámara disponible',
+    texto: 'Revisá que el dispositivo tenga cámara o validá el código a mano.',
+  },
+  ocupada: {
+    titulo: 'La cámara está ocupada',
+    texto: 'Cerrá otras aplicaciones o pestañas que la estén usando y probá de nuevo.',
+  },
+  'no-soportada': {
+    titulo: 'Este navegador no permite usar la cámara',
+    texto: 'Abrí el validador desde Chrome o Safari actualizados, o validá el código a mano.',
+  },
+};
+
+function leerModo(): ModoValidacion {
+  try {
+    return localStorage.getItem(CLAVE_MODO) === 'candy' ? 'candy' : 'entrada';
+  } catch {
+    return 'entrada';
+  }
+}
+
+function guardarModo(modo: ModoValidacion): void {
+  try {
+    localStorage.setItem(CLAVE_MODO, modo);
+  } catch {
+    return;
+  }
+}
+
+function problemaDe(error: unknown): ProblemaCamara {
+  const texto = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  if (/NotAllowedError|SecurityError|Permission|denied/i.test(texto)) return 'permiso';
+  if (/NotReadableError|TrackStartError|AbortError|in use/i.test(texto)) return 'ocupada';
+  if (/not supported|mediaDevices|secure context/i.test(texto)) return 'no-soportada';
+  return 'sin-camara';
+}
+
+function diaYHora(momento: Date): string {
+  const partes = new Intl.DateTimeFormat('es-AR', {
+    timeZone: ZONA_HORARIA,
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(momento);
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find(parte => parte.type === tipo)?.value ?? '';
+  return `${valor('day')}/${valor('month')} a las ${valor('hour')}:${valor('minute')}`;
+}
 
 @Component({
   selector: 'app-validador',
@@ -46,11 +108,12 @@ export class ValidadorComponent implements OnDestroy {
   private lector: Html5Qrcode | null = null;
   private contador = 0;
 
-  readonly modo = signal<ModoValidacion>('entrada');
+  readonly modo = signal<ModoValidacion>(leerModo());
   readonly pestania = signal<PestaniaIngreso>('escanear');
   readonly escaneando = signal(false);
   readonly abriendoCamara = signal(false);
   readonly camaraBloqueada = signal(false);
+  readonly problemaCamara = signal<ProblemaCamara>('permiso');
   readonly validando = signal(false);
   readonly saliendo = signal(false);
   readonly resultado = signal<ResultadoValidacion | null>(null);
@@ -59,7 +122,7 @@ export class ValidadorComponent implements OnDestroy {
   readonly historial = signal<RegistroValidacion[]>([]);
 
   readonly formulario = this.fb.nonNullable.group({
-    codigo: ['', [Validators.required, Validators.minLength(4)]],
+    codigo: ['', [Validators.required, Validators.pattern(FORMATO_CODIGO)]],
   });
 
   readonly nombre = computed(() => this.auth.nombreCompleto() || 'Empleado');
@@ -70,9 +133,23 @@ export class ValidadorComponent implements OnDestroy {
     this.modo() === 'entrada' ? 'Entrada a sala' : 'Candy bar',
   );
 
+  readonly ayudaReposo = computed(() =>
+    this.modo() === 'entrada'
+      ? 'Apuntá al código QR de la entrada'
+      : 'Apuntá al código QR para entregar el pedido del candy',
+  );
+
+  readonly textosCamara = computed(() => TEXTOS_CAMARA[this.problemaCamara()]);
+
+  readonly esOtroDia = computed(() => {
+    const salida = this.resultado();
+    return !!salida && !salida.ok && OTRO_DIA.test(salida.motivo?.trim() ?? '');
+  });
+
   readonly tituloResultado = computed(() => {
     const salida = this.resultado();
     if (!salida) return '';
+    if (this.esOtroDia()) return 'NO ES PARA HOY';
     if (!salida.ok) return 'NO VÁLIDA';
     return this.modoResultado() === 'entrada' ? 'ENTRADA VÁLIDA' : 'PRODUCTOS ENTREGADOS';
   });
@@ -95,6 +172,7 @@ export class ValidadorComponent implements OnDestroy {
     if (Number.isNaN(momento.getTime())) return '';
 
     const texto = momento.toLocaleString('es-AR', {
+      timeZone: ZONA_HORARIA,
       weekday: 'long',
       day: '2-digit',
       month: 'long',
@@ -105,6 +183,22 @@ export class ValidadorComponent implements OnDestroy {
     return texto.charAt(0).toUpperCase() + texto.slice(1);
   });
 
+  readonly avisoCandy = computed(() => {
+    const salida = this.resultado();
+    if (!salida?.ok || this.modoResultado() !== 'candy' || !salida.inicio) return '';
+
+    const momento = new Date(salida.inicio);
+    if (Number.isNaN(momento.getTime())) return '';
+
+    const dia = hoyLocal(momento);
+    const hoy = hoyLocal();
+    if (dia === hoy) return '';
+
+    return dia < hoy
+      ? `El pedido era para la función del ${diaYHora(momento)}, que ya pasó.`
+      : `El pedido es para la función del ${diaYHora(momento)}, que todavía no empezó.`;
+  });
+
   readonly validadas = computed(() => this.historial().filter(registro => registro.ok).length);
 
   readonly rechazadas = computed(() => this.historial().length - this.validadas());
@@ -113,6 +207,7 @@ export class ValidadorComponent implements OnDestroy {
     if (this.modo() === valor) return;
     this.modo.set(valor);
     this.resultado.set(null);
+    guardarModo(valor);
   }
 
   async cambiarPestania(valor: PestaniaIngreso): Promise<void> {
@@ -132,25 +227,37 @@ export class ValidadorComponent implements OnDestroy {
     this.abriendoCamara.set(true);
     this.camaraBloqueada.set(false);
 
-    try {
-      const lector = new Html5Qrcode(ID_LECTOR);
-      this.lector = lector;
+    let lector: Html5Qrcode | null = null;
 
-      await lector.start(
+    try {
+      const nuevo = new Html5Qrcode(ID_LECTOR);
+      lector = nuevo;
+      this.lector = nuevo;
+
+      await nuevo.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: 250 },
         textoLeido => {
+          if (this.lector !== nuevo) return;
           void this.alLeerCodigo(textoLeido);
         },
         undefined,
       );
 
+      if (this.lector !== nuevo) {
+        await this.apagar(nuevo);
+        return;
+      }
+
       this.escaneando.set(true);
-    } catch {
+    } catch (error) {
+      if (lector && this.lector !== lector) return;
+
       this.lector = null;
       this.escaneando.set(false);
+      this.problemaCamara.set(problemaDe(error));
       this.camaraBloqueada.set(true);
-      this.avisos.error('No pudimos usar la cámara. Cargá el código a mano');
+      this.avisos.error(`${this.textosCamara().titulo}. Cargá el código a mano`);
     } finally {
       this.abriendoCamara.set(false);
     }
@@ -163,11 +270,13 @@ export class ValidadorComponent implements OnDestroy {
 
     if (!lector) return;
 
+    const apagado = await this.apagar(lector);
+    if (!apagado) return;
+
     try {
-      if (lector.isScanning) await lector.stop();
       lector.clear();
     } catch {
-      this.lector = null;
+      return;
     }
   }
 
@@ -176,7 +285,7 @@ export class ValidadorComponent implements OnDestroy {
 
     if (this.formulario.invalid) {
       control.markAsTouched();
-      this.avisos.error('Escribí el código que figura en la entrada');
+      this.avisos.error('El código tiene 12 caracteres: números del 0 al 9 y letras de la A a la F');
       return;
     }
 
@@ -197,7 +306,11 @@ export class ValidadorComponent implements OnDestroy {
 
   normalizar(evento: Event): void {
     const campo = evento.target as HTMLInputElement;
-    const limpio = campo.value.toUpperCase().replace(/\s+/g, '');
+    const limpio = campo.value
+      .toUpperCase()
+      .replace(/O/g, '0')
+      .replace(/[^0-9A-F]/g, '')
+      .slice(0, 12);
 
     campo.value = limpio;
     this.formulario.controls.codigo.setValue(limpio, { emitEvent: false });
@@ -221,6 +334,18 @@ export class ValidadorComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     void this.detenerCamara();
+  }
+
+  private async apagar(lector: Html5Qrcode): Promise<boolean> {
+    try {
+      const estado = lector.getState();
+      if (estado === Html5QrcodeScannerState.SCANNING || estado === Html5QrcodeScannerState.PAUSED) {
+        await lector.stop();
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async alLeerCodigo(texto: string): Promise<void> {

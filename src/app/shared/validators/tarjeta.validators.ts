@@ -95,7 +95,7 @@ export const titularValidator: ValidatorFn = (control: AbstractControl): Validat
   const valor = String(control.value ?? '').trim().replace(/\s+/g, ' ');
   if (!valor) return null;
 
-  const soloLetras = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' ]+$/.test(valor);
+  const soloLetras = /^\p{L}[\p{L}\p{M}'’ .-]*$/u.test(valor);
   const nombreYApellido = valor.split(' ').filter((parte) => parte.length >= 2).length >= 2;
 
   return soloLetras && nombreYApellido ? null : { titularInvalido: true };

@@ -28,6 +28,8 @@ export class AdminUsuariosComponent implements OnInit {
 
   readonly roles: RolUsuario[] = ['cliente', 'empleado', 'admin'];
 
+  private readonly formatoNumero = new Intl.NumberFormat('es-AR');
+
   readonly totales = computed(() => {
     const lista = this.usuarios();
 
@@ -106,10 +108,20 @@ export class AdminUsuariosComponent implements OnInit {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   }
 
+  fechaAlta(valor: string | null): string {
+    if (!valor) return '—';
+
+    const momento = new Date(valor);
+    if (Number.isNaN(momento.getTime())) return '—';
+
+    return momento.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
   edad(valor: string | null): string {
     if (!valor) return '—';
 
-    const nacimiento = new Date(valor);
+    const [anio, mes, dia] = valor.slice(0, 10).split('-').map(Number);
+    const nacimiento = new Date(anio, mes - 1, dia);
     if (Number.isNaN(nacimiento.getTime())) return '—';
 
     const hoy = new Date();
@@ -123,6 +135,10 @@ export class AdminUsuariosComponent implements OnInit {
     if (anios < 0 || anios > 130) return '—';
 
     return `${anios} años`;
+  }
+
+  numero(valor: number): string {
+    return this.formatoNumero.format(valor);
   }
 
   async cambiarRol(usuario: Perfil, evento: Event): Promise<void> {

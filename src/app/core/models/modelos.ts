@@ -99,6 +99,7 @@ export interface Combo {
   precio: number;
   imagen_url: string | null;
   activo: boolean;
+  entradas_incluidas?: number;
 }
 
 export interface Cupon {
@@ -141,6 +142,7 @@ export interface Compra {
   tarjeta_marca: string | null;
   tarjeta_ultimos4: string | null;
   descuento_canjes: number;
+  descuento_combos?: number;
   creado_en: string;
   funcion?: Funcion;
 }

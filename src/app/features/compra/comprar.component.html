@@ -7,6 +7,14 @@
     <app-vacio titulo="La venta para esta película todavía no abrió" [texto]="textoApertura()" />
     <a class="btn btn-primario" [routerLink]="['/peliculas', funcion()?.pelicula_id]">Ver la ficha de la película</a>
   </div>
+} @else if (funcionComenzada()) {
+  <div class="contenedor pantalla-estado">
+    <app-vacio
+      titulo="Esta función ya comenzó"
+      texto="Ya no se venden entradas para este horario. Elegí otra función de la película para seguir con tu compra."
+    />
+    <a class="btn btn-primario" [routerLink]="['/peliculas', funcion()?.pelicula_id]">Ver otros horarios</a>
+  </div>
 } @else {
   @if (funcion(); as f) {
     <div class="contenedor compra">
@@ -238,6 +246,14 @@
                       </div>
                       <div class="cuerpo">
                         <h4>{{ combo.nombre }}</h4>
+                        @if (entradasDe(combo); as incluidas) {
+                          <span class="incluye">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" />
+                            </svg>
+                            Incluye {{ incluidas }} {{ incluidas === 1 ? 'entrada' : 'entradas' }}
+                          </span>
+                        }
                         @if (combo.descripcion) {
                           <p>{{ combo.descripcion }}</p>
                         }
@@ -247,12 +263,27 @@
                             <div class="cantidad">
                               <button type="button" aria-label="Quitar uno" (click)="cambiarCantidad(null, combo.id, -1)">−</button>
                               <span>{{ cantidad }}</span>
-                              <button type="button" aria-label="Agregar uno" (click)="cambiarCantidad(null, combo.id, 1)">+</button>
+                              <button
+                                type="button"
+                                aria-label="Agregar uno"
+                                [disabled]="cantidad >= topeUnidades || !puedeSumarCombo(combo)"
+                                (click)="cambiarCantidad(null, combo.id, 1)"
+                              >+</button>
                             </div>
                           } @else {
-                            <button type="button" class="btn btn-secundario chico" (click)="agregarCombo(combo)">Agregar</button>
+                            <button
+                              type="button"
+                              class="btn btn-secundario chico"
+                              [disabled]="!puedeSumarCombo(combo)"
+                              (click)="agregarCombo(combo)"
+                            >Agregar</button>
                           }
                         </div>
+                        @if (!puedeSumarCombo(combo)) {
+                          <small class="sin-lugar">
+                            {{ cantidadDe(null, combo.id) > 0 ? 'Para sumar otro, elegí más butacas' : 'Elegí más butacas para sumar este combo' }}
+                          </small>
+                        }
                       </div>
                     </article>
                   }
@@ -285,7 +316,12 @@
                             <div class="cantidad">
                               <button type="button" aria-label="Quitar uno" (click)="cambiarCantidad(producto.id, null, -1)">−</button>
                               <span>{{ cantidad }}</span>
-                              <button type="button" aria-label="Agregar uno" (click)="cambiarCantidad(producto.id, null, 1)">+</button>
+                              <button
+                                type="button"
+                                aria-label="Agregar uno"
+                                [disabled]="cantidad >= topeUnidades"
+                                (click)="cambiarCantidad(producto.id, null, 1)"
+                              >+</button>
                             </div>
                           } @else {
                             <button type="button" class="btn btn-secundario chico" (click)="agregarProducto(producto)">Agregar</button>
@@ -306,6 +342,20 @@
             }
 
             <div class="barra">
+              @if (excesoEntradas()) {
+                <p class="barra-error" role="alert">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7.5v5.5M12 16.5v.01" />
+                  </svg>
+                  <span>
+                    {{ mensajeExceso }}: tus combos suman {{ entradasEnCombos() }}
+                    {{ entradasEnCombos() === 1 ? 'entrada' : 'entradas' }} y elegiste
+                    {{ carrito.butacas().length }} {{ carrito.butacas().length === 1 ? 'butaca' : 'butacas' }}.
+                    Sacá algún combo o volvé al paso 1 para sumar butacas.
+                  </span>
+                </p>
+              }
               <div class="barra-info">
                 <span>
                   {{ carrito.butacas().length }}
@@ -314,11 +364,17 @@
                   {{ carrito.cantidadProductos() }}
                   {{ carrito.cantidadProductos() === 1 ? 'producto' : 'productos' }}
                 </span>
-                <strong>{{ carrito.subtotal() | precio }}</strong>
+                <strong>{{ subtotalConCombos() | precio }}</strong>
+                @if (descuentoCombos() > 0) {
+                  <small class="barra-combos">
+                    Ya descontamos {{ descuentoCombos() | precio }} por
+                    {{ entradasEnCombos() === 1 ? 'la entrada incluida' : 'las entradas incluidas' }} en tus combos
+                  </small>
+                }
               </div>
               <div class="barra-botones">
                 <button type="button" class="btn btn-secundario" (click)="irAPaso(1)">Volver</button>
-                <button type="button" class="btn btn-primario" (click)="irAPaso(3)">Continuar</button>
+                <button type="button" class="btn btn-primario" [disabled]="excesoEntradas()" (click)="irAPaso(3)">Continuar</button>
               </div>
             </div>
           </section>
@@ -369,7 +425,12 @@
                   <h4>Candy bar</h4>
                   @for (item of carrito.items(); track $index) {
                     <div class="linea">
-                      <span>{{ item.cantidad }} × {{ item.nombre }}</span>
+                      <span>
+                        {{ item.cantidad }} × {{ item.nombre }}
+                        @if (entradasDeItem(item); as incluidas) {
+                          <em>{{ incluidas }} {{ incluidas === 1 ? 'entrada incluida' : 'entradas incluidas' }}</em>
+                        }
+                      </span>
                       <strong>{{ item.cantidad * item.precio_unitario | precio }}</strong>
                     </div>
                   }
@@ -400,8 +461,8 @@
                 <div class="campo">
                   <label for="email">Email de contacto</label>
                   <input id="email" type="email" formControlName="email" placeholder="vos@email.com" autocomplete="email" />
-                  @if (formulario.controls.email.touched && formulario.controls.email.invalid) {
-                    <span class="error-campo">Escribí un email válido para enviarte la entrada</span>
+                  @if (errorEmail(); as mensaje) {
+                    <span class="error-campo">{{ mensaje }}</span>
                   }
                   @if (emailDeCuenta()) {
                     <span class="ayuda">Usamos el email de tu cuenta.</span>
@@ -411,7 +472,13 @@
                 @if (necesitaNacimiento()) {
                   <div class="campo">
                     <label for="nacimiento">Fecha de nacimiento</label>
-                    <input id="nacimiento" type="date" formControlName="fechaNacimiento" />
+                    <app-selector-fecha
+                      id="nacimiento"
+                      modo="nacimiento"
+                      etiqueta="Fecha de nacimiento"
+                      formControlName="fechaNacimiento"
+                      [maximo]="hoy"
+                    />
                     @if (formulario.controls.fechaNacimiento.touched && formulario.controls.fechaNacimiento.invalid) {
                       <span class="error-campo">Necesitamos tu fecha de nacimiento para esta película</span>
                     }
@@ -443,7 +510,11 @@
                       }
                     </div>
                     @if (cuponAplicado(); as cupon) {
-                      <span class="ok-campo">{{ cupon.codigo }} aplicado · {{ cupon.porcentaje }}% de descuento</span>
+                      @if (descuento() > 0) {
+                        <span class="ok-campo">{{ cupon.codigo }} aplicado · {{ cupon.porcentaje }}% de descuento</span>
+                      } @else {
+                        <span class="ayuda">{{ cupon.codigo }} no descuenta nada en esta compra, así que no lo vamos a usar.</span>
+                      }
                     }
                   </div>
 
@@ -512,16 +583,22 @@
                             <circle cx="12" cy="12" r="9" />
                             <path d="M12 11v5M12 8v.01" />
                           </svg>
-                          Podés usar hasta {{ carrito.butacas().length }}
-                          {{ carrito.butacas().length === 1 ? 'canje' : 'canjes' }} de entrada: uno por cada
-                          butaca elegida. Sumá más butacas si querés usar los demás.
+                          @if (entradasEnCombos() > 0) {
+                            Podés usar hasta {{ cupoCanjesEntrada() }}
+                            {{ cupoCanjesEntrada() === 1 ? 'canje' : 'canjes' }} de entrada: uno por cada
+                            butaca elegida que no cubra un combo. Sumá más butacas si querés usar los demás.
+                          } @else {
+                            Podés usar hasta {{ carrito.butacas().length }}
+                            {{ carrito.butacas().length === 1 ? 'canje' : 'canjes' }} de entrada: uno por cada
+                            butaca elegida. Sumá más butacas si querés usar los demás.
+                          }
                         </p>
                       }
                     </div>
                   }
                 } @else {
                   <p class="invitado">
-                    Comprás como invitado. <a routerLink="/auth/login">Ingresá a tu cuenta</a> para usar
+                    Comprás como invitado. <a routerLink="/auth/login" [queryParams]="{ volverA: urlActual() }">Ingresá a tu cuenta</a> para usar
                     cupones, crédito, canjes de puntos y sumar puntos.
                   </p>
                 }
@@ -805,6 +882,15 @@
                     <strong>− {{ descuentoCanjes() | precio }}</strong>
                   </div>
                 }
+                @if (descuentoCombos() > 0) {
+                  <div class="linea verde">
+                    <span>
+                      Entradas incluidas en combos
+                      <em>× {{ entradasEnCombos() }}</em>
+                    </span>
+                    <strong>− {{ descuentoCombos() | precio }}</strong>
+                  </div>
+                }
                 @if (descuento() > 0) {
                   <div class="linea verde">
                     <span>
@@ -831,6 +917,16 @@
                 }
               </div>
 
+              @if (excesoEntradas()) {
+                <div class="error-pago anim-aparecer" role="alert">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7.5v5.5M12 16.5v.01" />
+                  </svg>
+                  <p>{{ mensajeExceso }}. Volvé al candy bar para sacar algún combo o elegí más butacas.</p>
+                </div>
+              }
+
               @if (errorPago(); as error) {
                 <div class="error-pago anim-aparecer" role="alert">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -842,7 +938,11 @@
               }
 
               <div class="acciones">
-                <button type="submit" class="btn btn-primario" [disabled]="procesando() || aplicandoCupon() || carrito.butacas().length === 0">
+                <button
+                  type="submit"
+                  class="btn btn-primario"
+                  [disabled]="procesando() || aplicandoCupon() || carrito.butacas().length === 0 || excesoEntradas()"
+                >
                   @if (procesando()) {
                     Procesando...
                   } @else if (total() > 0) {

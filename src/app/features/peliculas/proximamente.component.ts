@@ -9,7 +9,7 @@ import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
-import { diasHasta, preventaVigente } from '../../shared/utils/ventas';
+import { diasHasta, preventaVigente, ventaAbierta } from '../../shared/utils/ventas';
 
 @Component({
   selector: 'app-proximamente',
@@ -65,7 +65,7 @@ export class ProximamenteComponent implements OnInit {
 
   cuenta(pelicula: Pelicula): string {
     const restantes = this.dias(pelicula);
-    if (restantes < 0) return 'Estreno inminente';
+    if (restantes < 0) return 'Ya se estrenó';
     if (restantes === 0) return 'Se estrena hoy';
     if (restantes === 1) return 'Falta 1 día';
     return `Faltan ${restantes} días`;
@@ -89,6 +89,14 @@ export class ProximamenteComponent implements OnInit {
     return preventaVigente(pelicula);
   }
 
+  ventaYaAbierta(pelicula: Pelicula): boolean {
+    return ventaAbierta(pelicula) && !preventaVigente(pelicula);
+  }
+
+  ofrecerAlerta(pelicula: Pelicula): boolean {
+    return !ventaAbierta(pelicula) || this.tieneAlerta(pelicula.id);
+  }
+
   async alternarAlerta(pelicula: Pelicula): Promise<void> {
     if (!this.auth.estaLogueado()) {
       this.avisos.info('Ingresá a tu cuenta para activar la alerta');
@@ -109,7 +117,7 @@ export class ProximamenteComponent implements OnInit {
 
       this.avisos.exito(
         activada
-          ? `Te avisamos cuando se estrene ${pelicula.titulo}`
+          ? `Te avisamos por correo cuando abra la venta de ${pelicula.titulo}`
           : `Sacamos la alerta de ${pelicula.titulo}`,
       );
     } catch (e) {

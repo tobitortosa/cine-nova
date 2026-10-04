@@ -15,6 +15,36 @@
   color: var(--c-text-soft);
 }
 
+.activacion {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: 1px solid rgb(245 180 60 / .38);
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, rgb(255 210 127 / .14), rgb(245 180 60 / .04));
+}
+
+.activacion svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--c-accent);
+}
+
+.activacion p {
+  margin: 0;
+  font-size: .86rem;
+  line-height: 1.45;
+  color: var(--c-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.activacion strong {
+  color: var(--c-accent-soft);
+  font-weight: 700;
+}
+
 .formulario .campo {
   margin-bottom: 18px;
 }
