@@ -37,7 +37,9 @@ end $$;
 update perfiles set tipo_sangre = 'O' || substr(tipo_sangre, 2) where tipo_sangre in ('0+', '0-');
 
 delete from log_actividad
- where usuario_id is null and accion = 'x' and entidad = 'x' and entidad_id = 'x';
+ where usuario_id is null
+   and ((accion = 'x' and entidad = 'x' and entidad_id = 'x')
+     or (accion = 'prueba' and entidad = 'prueba' and entidad_id = '0'));
 
 update resenias set comentario = left(comentario, 1000) where char_length(comentario) > 1000;
 
