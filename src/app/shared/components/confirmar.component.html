@@ -1,15 +1,20 @@
 @if (abierto()) {
   <div class="capa anim-aparecer" (click)="cerrar()">
-    <div class="caja anim-escalar" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-      <h3 class="titulo">{{ titulo() }}</h3>
+    <div
+      class="caja anim-escalar"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-labelledby]="idTitulo"
+      (click)="$event.stopPropagation()">
+      <h3 class="titulo" [id]="idTitulo">{{ titulo() }}</h3>
 
       @if (texto()) {
         <p class="texto">{{ texto() }}</p>
       }
 
       <div class="acciones">
-        <button type="button" class="btn btn-secundario" (click)="cerrar()">Cancelar</button>
-        <button type="button" class="btn btn-primario" (click)="aceptar()">Confirmar</button>
+        <button #botonCerrar type="button" class="btn btn-secundario" (click)="cerrar()">{{ textoCerrar() }}</button>
+        <button #botonAceptar type="button" class="btn btn-primario" (click)="aceptar()">{{ textoAceptar() }}</button>
       </div>
     </div>
   </div>

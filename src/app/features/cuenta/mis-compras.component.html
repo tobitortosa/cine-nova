@@ -115,5 +115,7 @@
 <app-confirmar
   titulo="¿Cancelar esta compra?"
   [texto]="textoConfirmacion()"
+  textoAceptar="Sí, cancelar"
+  textoCerrar="Volver"
   [(abierto)]="confirmando"
   (confirmado)="confirmarCancelacion()" />

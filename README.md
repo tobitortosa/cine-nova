@@ -120,6 +120,23 @@ Los validadores de tarjeta son validadores propios de Reactive Forms: algoritmo 
 
 Cada canje genera un código. En el paso de pago el usuario elige qué canjes aplicar: una entrada gratis descuenta el precio de una butaca estándar, y un producto se agrega al pedido a $0. La base verifica que el canje sea del usuario, que no se haya usado y que no haya más canjes de entrada que butacas, y lo bloquea con `select ... for update` para que no se pueda usar dos veces al mismo tiempo. Si la compra se cancela, el canje vuelve a quedar disponible.
 
+### Cancelación con crédito, también para invitados
+
+El cliente pidió que se pueda cancelar hasta 2 horas antes de la función y que no se devuelva dinero sino crédito en la cuenta, visible en el perfil. Quien compró con su cuenta cancela desde Mis compras. Quien compró como invitado también puede, pero como el crédito necesita una cuenta donde quedar, se la pedimos al cancelar y no al comprar:
+
+1. En su entrada (`/compra/CODIGO`, a la que llega desde el correo de la compra) ve la sección "¿No vas a poder ir?".
+2. Ingresa o crea una cuenta y vuelve a la entrada.
+3. Pide un código de 6 dígitos, que le llega **al email de la compra**, y lo escribe.
+4. La compra se vincula a esa cuenta y se cancela con la misma `cancelar_compra()` de siempre: 2 horas, entrada sin validar, candy sin retirar, crédito acreditado y butacas liberadas, en una sola transacción.
+
+Lo que hay que probar es que quien cancela es el comprador, y ni el código de compra ni el email de la cuenta lo prueban. El código de compra es el QR: va en el PDF y se le pasa a los acompañantes. El email de la cuenta tampoco, porque el registro no lo verifica y cualquiera podría registrarse con un email ajeno. Por eso no vinculamos compras por email. Lo único que demuestra la titularidad es tener acceso a la casilla de la compra, igual que un "olvidé mi contraseña".
+
+El código se guarda hasheado en `cancelaciones_invitado`, que tiene RLS activado y ninguna política, y no como columna de `compras`, porque `buscar_compra()` es pública. Vence a los 15 minutos (o antes, si se cierra el plazo de 2 horas), sirve una sola vez y solo para la cuenta que lo pidió, admite 5 intentos y como máximo se envían 5 por compra cada 24 horas. El correo del código dice qué cuenta lo pidió, así quien compró se entera si no lo pidió.
+
+El crédito siempre termina en una cuenta: `cancelar_compra()` no anula una compra sin dueño, aunque lo pida un administrador, y las compras, entradas e ítems ya no se pueden modificar directamente por la API, ni siquiera con un usuario admin. Solo cambian a través de las funciones de la base, que son las que aplican las reglas.
+
+El cliente de Supabase tampoco toma sesiones de la URL (`detectSessionInUrl: false`). La app no usa magic links ni OAuth, y así nadie puede mandar un enlace con su `#access_token` que deje a otra persona logueada en su cuenta para quedarse con el crédito que ella cancela.
+
 ### Preventa y apertura automática de la venta
 
 `venta_abierta()` y `preventa_vigente()` deciden en la base si una película se puede vender y a qué precio. Si tiene precio de preventa, la venta se abre 7 días antes del estreno; si no, el día del estreno. `shared/utils/ventas.ts` replica exactamente esas reglas para mostrar los precios antes de pagar.
@@ -128,7 +145,7 @@ Un job de `pg_cron` corre cada hora: pasa a cartelera las películas que ya se e
 
 ### Correos automáticos
 
-PostgreSQL manda los correos directamente a la API de Brevo con `pg_net`, sin servidor intermedio: la compra confirmada (con el código y el enlace al QR), la cancelación con el crédito acreditado, la bienvenida con el cupón y la apertura de venta para las alertas. La clave de Brevo vive en la tabla `configuracion`, que tiene RLS activado y ninguna política: no la puede leer ni `anon` ni `authenticated`, solo las funciones `security definer`. Cada envío queda registrado en la tabla `correos`.
+PostgreSQL manda los correos directamente a la API de Brevo con `pg_net`, sin servidor intermedio: la compra confirmada (con el código, el enlace al QR y cómo cancelarla), el código para cancelar una compra de invitado, la cancelación con el crédito acreditado, la bienvenida con el cupón y la apertura de venta para las alertas. La clave de Brevo vive en la tabla `configuracion`, que tiene RLS activado y ninguna política: no la puede leer ni `anon` ni `authenticated`, solo las funciones `security definer`. Cada envío queda registrado en la tabla `correos`.
 
 ### Disponibilidad de butacas en tiempo real
 
@@ -162,8 +179,9 @@ Los scripts están en `supabase/` y se ejecutan en orden:
 | `06_usuarios_demo.sql` | Cuentas de prueba |
 | `07_correos.sql` | Envío de correos y apertura automática de ventas |
 | `08_correcciones.sql` | Correcciones: reservas con vencimiento fijo, combos con entradas, permisos, reseñas, reportes por día local y control de envíos de Brevo |
+| `09_cancelacion_invitados.sql` | Cancelación de compras de invitado con código por correo, y compras que solo se modifican por funciones |
 
-Cada script es idempotente: se puede volver a ejecutar sin romper nada. El 08 reemplaza funciones, triggers y permisos de los anteriores: si se vuelve a correr alguno de ellos, después hay que correr el 08 otra vez. Conviene correrlo sin usuarios en la app; si se corta por un interbloqueo, se vuelve a correr.
+Cada script es idempotente: se puede volver a ejecutar sin romper nada. El 08 y el 09 reemplazan funciones, triggers y permisos de los anteriores, y el 09 también reemplaza funciones del 08: si se vuelve a correr cualquiera de los scripts 01 a 07, después hay que correr el 08 y el 09, en ese orden, y si se vuelve a correr el 08, también el 09. Conviene correrlos sin usuarios en la app; si alguno se corta por un interbloqueo, se vuelve a correr.
 
 Para que los correos salgan hay que cargar una sola vez, desde el SQL Editor, la clave de la API de Brevo y una dirección de remitente verificada en Brevo:
 

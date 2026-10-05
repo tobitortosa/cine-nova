@@ -466,6 +466,8 @@
                   }
                   @if (emailDeCuenta()) {
                     <span class="ayuda">Usamos el email de tu cuenta.</span>
+                  } @else {
+                    <span class="ayuda">Te mandamos la entrada a este email. Si después necesitás cancelar la compra, te llega ahí un código para confirmarlo.</span>
                   }
                 </div>
 
@@ -599,7 +601,8 @@
                 } @else {
                   <p class="invitado">
                     Comprás como invitado. <a routerLink="/auth/login" [queryParams]="{ volverA: urlActual() }">Ingresá a tu cuenta</a> para usar
-                    cupones, crédito, canjes de puntos y sumar puntos.
+                    cupones, crédito, canjes de puntos y sumar puntos. Si después cancelás, el importe vuelve como crédito
+                    en una cuenta de CineNova, no como dinero.
                   </p>
                 }
               </section>

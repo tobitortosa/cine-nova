@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   ElementRef,
   Injector,
   afterNextRender,
@@ -70,6 +71,7 @@ export class DetallePeliculaComponent {
   private readonly ruta = inject(ActivatedRoute);
   private readonly anfitrion = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly auth = inject(AuthService);
 
@@ -263,7 +265,7 @@ export class DetallePeliculaComponent {
 
   private irAlAncla(): void {
     const ancla = this.ruta.snapshot.fragment;
-    if (!ancla) return;
+    if (!ancla || this.destroyRef.destroyed) return;
 
     afterNextRender(
       () => {

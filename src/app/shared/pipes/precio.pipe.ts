@@ -9,6 +9,6 @@ export class PrecioPipe implements PipeTransform {
 
   transform(valor: number | null | undefined): string {
     const numero = Number(valor);
-    return `$ ${this.formato.format(Number.isFinite(numero) ? numero : 0)}`;
+    return `$\u00a0${this.formato.format(Number.isFinite(numero) ? numero : 0)}`;
   }
 }

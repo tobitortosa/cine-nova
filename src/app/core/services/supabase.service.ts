@@ -11,7 +11,7 @@ export class SupabaseService {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false,
       },
     });
   }

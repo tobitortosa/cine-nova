@@ -6,6 +6,8 @@ import {
   DatosPago,
   ItemCarrito,
   MiPelicula,
+  RespuestaCancelacionInvitado,
+  RespuestaCodigoCancelacion,
   ResultadoValidacion,
   ResumenCompra,
 } from '../models/modelos';
@@ -112,6 +114,31 @@ export class ComprasService {
     if (error) {
       throw new Error(error.message || 'No se pudo cancelar la compra');
     }
+  }
+
+  async pedirCodigoCancelacion(codigo: string): Promise<RespuestaCodigoCancelacion> {
+    const { data, error } = await this.supabase.client.rpc('pedir_codigo_cancelacion', {
+      p_codigo: codigo,
+    });
+
+    if (error || !data) {
+      throw new Error(error?.message || 'No pudimos enviar el código');
+    }
+
+    return data as RespuestaCodigoCancelacion;
+  }
+
+  async cancelarComoInvitado(codigo: string, clave: string): Promise<RespuestaCancelacionInvitado> {
+    const { data, error } = await this.supabase.client.rpc('cancelar_compra_invitado', {
+      p_codigo: codigo,
+      p_clave: clave,
+    });
+
+    if (error || !data) {
+      throw new Error(error?.message || 'No se pudo cancelar la compra');
+    }
+
+    return data as RespuestaCancelacionInvitado;
   }
 
   async misPeliculas(): Promise<MiPelicula[]> {

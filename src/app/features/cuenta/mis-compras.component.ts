@@ -10,6 +10,7 @@ import { MedioPagoPipe } from '../../shared/pipes/medio-pago.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
+import { ZONA_HORARIA } from '../../shared/utils/ventas';
 
 const MARGEN_CANCELACION_MS = 2 * 60 * 60 * 1000;
 
@@ -46,14 +47,17 @@ export class MisComprasComponent implements OnInit {
   private readonly detalles = signal<Map<number, ResumenCompra>>(new Map());
 
   private readonly formatoFecha = new Intl.DateTimeFormat('es-AR', {
+    timeZone: ZONA_HORARIA,
     weekday: 'long',
     day: '2-digit',
     month: 'long',
     hour: '2-digit',
     minute: '2-digit',
+    hourCycle: 'h23',
   });
 
   private readonly formatoCorto = new Intl.DateTimeFormat('es-AR', {
+    timeZone: ZONA_HORARIA,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

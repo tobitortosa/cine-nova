@@ -1,0 +1,49 @@
+:host {
+  display: block;
+}
+
+.texto {
+  margin: 0 0 12px;
+  font-size: .9rem;
+  color: var(--c-text-soft);
+  line-height: 1.6;
+
+  strong {
+    color: var(--c-text);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+}
+
+.botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.formulario {
+  margin-top: 4px;
+
+  .campo {
+    max-width: 240px;
+    margin-bottom: 0;
+  }
+}
+
+.clave {
+  font-family: ui-monospace, 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+  font-size: 1.35rem;
+  letter-spacing: .4em;
+  text-align: center;
+}
+
+@media (max-width: 620px) {
+  .formulario .campo {
+    max-width: none;
+  }
+
+  .botones .btn {
+    flex: 1 1 100%;
+  }
+}

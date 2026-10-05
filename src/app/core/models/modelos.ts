@@ -255,7 +255,17 @@ export interface ResumenCompra {
   sala: string | null;
   butacas: ButacaComprada[];
   items: { nombre: string; cantidad: number; precio_unitario: number }[];
+  con_cuenta?: boolean;
+  propia?: boolean;
 }
+
+export type RespuestaCodigoCancelacion =
+  | { ok: true; email: string; vence: string }
+  | { ok: false; motivo: string; espera?: boolean };
+
+export type RespuestaCancelacionInvitado =
+  | { ok: true; credito: number }
+  | { ok: false; motivo: string; restantes?: number; vencido?: boolean };
 
 export interface ResultadoValidacion {
   ok: boolean;

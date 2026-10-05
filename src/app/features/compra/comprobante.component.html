@@ -257,7 +257,13 @@
       <a class="btn btn-secundario" routerLink="/peliculas">Ver la cartelera</a>
     </div>
 
-    @if (cancelada()) {
+    @if (creditoAcreditado() !== null) {
+      <p class="nota-estado exito">
+        Listo: cancelamos la compra y te acreditamos {{ creditoAcreditado() | precio }} como crédito.
+        Lo ves en <a routerLink="/cuenta">Mi cuenta</a> y lo podés usar en tu próxima compra, solo o
+        junto con otro medio de pago.
+      </p>
+    } @else if (cancelada()) {
       <p class="nota-estado peligro">
         Esta compra fue cancelada. El código ya no sirve para ingresar a la sala ni para
         retirar productos.
@@ -272,6 +278,52 @@
         La entrada ya fue validada en la puerta de la sala. Guardá el comprobante como
         respaldo de tu compra.
       </p>
+    }
+
+    @if (seccionCancelar(); as seccion) {
+      <section id="cancelar" class="cancelar tarjeta" aria-labelledby="titulo-cancelar">
+        <h2 id="titulo-cancelar">¿No vas a poder ir?</h2>
+
+        @switch (seccion) {
+          @case ('invitado') {
+            <p class="cancelar-plazo">
+              Podés cancelar la compra hasta {{ plazoCancelacion() }}.
+              @if (montoCredito() > 0) {
+                No devolvemos dinero: el importe ({{ montoCredito() | precio }}) vuelve como crédito en una
+                cuenta de CineNova para tu próxima compra.
+              }
+            </p>
+            <app-cancelar-invitado
+              [codigo]="r.compra.codigo"
+              [monto]="montoCredito()"
+              [emailCompra]="email()"
+              (cancelada)="alCancelar($event)"
+              (desactualizada)="recargar()" />
+          }
+          @case ('propia') {
+            <p class="cancelar-plazo">
+              La hiciste con tu cuenta, así que la cancelás desde Mis compras hasta {{ plazoCancelacion() }}.
+              @if (montoCredito() > 0) {
+                No devolvemos dinero: el importe ({{ montoCredito() | precio }}) vuelve como crédito en tu cuenta.
+              }
+            </p>
+            <a class="btn btn-secundario" routerLink="/cuenta/compras">Ir a Mis compras</a>
+          }
+          @case ('cuenta') {
+            <p class="cancelar-plazo">
+              Esta compra se hizo con una cuenta de CineNova. Quien la hizo la puede cancelar desde Mis
+              compras hasta {{ plazoCancelacion() }}, y el importe vuelve como crédito a esa cuenta.
+            </p>
+            <a class="btn btn-secundario" routerLink="/cuenta/compras">Ir a Mis compras</a>
+          }
+          @case ('otra') {
+            <p class="cancelar-plazo">
+              Esta compra se hizo con otra cuenta de CineNova. Para cancelarla, ingresá con esa cuenta y
+              entrá a Mis compras hasta {{ plazoCancelacion() }}: el crédito vuelve ahí.
+            </p>
+          }
+        }
+      </section>
     }
   } @else {
     <app-vacio

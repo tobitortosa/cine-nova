@@ -1,0 +1,92 @@
+@if (!logueado()) {
+  <p class="texto">
+    Para recibir el crédito necesitás una cuenta de CineNova: puede tener el mismo email de la compra o
+    otro. Ingresá a tu cuenta o creá una, y después volvé a esta entrada para terminar.
+  </p>
+
+  <div class="botones">
+    <a class="btn btn-primario" routerLink="/auth/registro" [queryParams]="volverA()">Crear cuenta</a>
+    <a class="btn btn-secundario" routerLink="/auth/login" [queryParams]="volverA()">Ya tengo cuenta</a>
+  </div>
+} @else {
+  @switch (paso()) {
+    @case ('inicio') {
+      <p class="texto">
+        Para confirmar que sos quien hizo la compra, te mandamos un código de 6 dígitos al email de la
+        compra, <strong>{{ emailCompra() }}</strong>.
+      </p>
+
+      @if (emailCuenta()) {
+        <p class="texto">El crédito se acredita en tu cuenta <strong>{{ emailCuenta() }}</strong>.</p>
+      }
+
+      <div class="botones">
+        <button type="button" class="btn btn-primario" [disabled]="enviando()" (click)="pedirCodigo()">
+          @if (enviando()) {
+            Enviando código...
+          } @else {
+            Enviarme el código
+          }
+        </button>
+        <button type="button" class="btn btn-fantasma" [disabled]="enviando()" (click)="usarCodigoRecibido()">
+          Ya tengo un código
+        </button>
+      </div>
+    }
+
+    @case ('codigo') {
+      <p class="texto">
+        Te mandamos un código a <strong>{{ destino() }}</strong>.
+        @if (vence()) {
+          Vence a las {{ vence() }} h y sirve una sola vez.
+        } @else {
+          Sirve una sola vez y vence a los 15 minutos de pedirlo, o antes si se cierra el plazo para cancelar.
+        }
+        Si no lo ves, revisá la carpeta de spam.
+      </p>
+
+      <form class="formulario" [formGroup]="formulario" (ngSubmit)="pedirConfirmacion()">
+        <div class="campo">
+          <label for="clave-cancelacion">Código de 6 dígitos</label>
+          <input
+            id="clave-cancelacion"
+            class="clave"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            placeholder="000000"
+            formControlName="clave" />
+          @if (mostrarErrorClave()) {
+            <span class="error-campo">Escribí los 6 números que te llegaron por correo.</span>
+          }
+        </div>
+
+        <div class="botones">
+          <button type="submit" class="btn btn-peligro" [disabled]="procesando()">
+            @if (procesando()) {
+              Cancelando...
+            } @else {
+              Cancelar compra
+            }
+          </button>
+          <button type="button" class="btn btn-fantasma" [disabled]="enviando() || procesando()" (click)="pedirCodigo()">
+            @if (enviando()) {
+              Enviando...
+            } @else {
+              Reenviar código
+            }
+          </button>
+        </div>
+      </form>
+    }
+  }
+}
+
+<app-confirmar
+  titulo="¿Cancelar esta compra?"
+  [texto]="textoConfirmacion()"
+  textoAceptar="Sí, cancelar"
+  textoCerrar="Volver"
+  [(abierto)]="confirmando"
+  (confirmado)="confirmar()" />

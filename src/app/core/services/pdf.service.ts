@@ -437,6 +437,7 @@ export class PdfService {
       timeZone: ZONA_HORARIA,
       hour: '2-digit',
       minute: '2-digit',
+      hourCycle: 'h23',
     });
   }
 
@@ -451,6 +452,7 @@ export class PdfService {
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hourCycle: 'h23',
     });
   }
 

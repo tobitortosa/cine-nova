@@ -565,6 +565,40 @@
   color: var(--c-danger);
 }
 
+.nota-estado.exito {
+  color: var(--c-success);
+
+  a {
+    color: var(--c-text);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.cancelar {
+  margin: 36px auto 0;
+  max-width: 620px;
+  padding: 24px 26px;
+  scroll-margin-top: calc(var(--header-h) + 20px);
+
+  h2 {
+    margin: 0 0 8px;
+    font-size: 1.2rem;
+  }
+}
+
+.cancelar-plazo {
+  margin: 0 0 12px;
+  font-size: .9rem;
+  color: var(--c-text-soft);
+  line-height: 1.6;
+}
+
+.cancelar-plazo + .btn {
+  margin-top: 4px;
+}
+
 .codigo-buscado {
   width: 100%;
   margin: 0 0 6px;
@@ -627,5 +661,13 @@
 
   .acciones .btn {
     width: 100%;
+  }
+
+  .cancelar {
+    padding: 20px 18px;
+
+    > .btn {
+      width: 100%;
+    }
   }
 }
