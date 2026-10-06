@@ -1,16 +1,3 @@
-create or replace function promover(p_email text, p_rol rol_usuario)
-returns text language plpgsql security definer set search_path = public as $$
-declare v_n int;
-begin
-  perform set_config('app.bypass_perfil','on',true);
-  update perfiles set rol = p_rol where lower(email) = lower(trim(p_email));
-  get diagnostics v_n = row_count;
-  if v_n = 0 then return 'No existe un usuario con ese email'; end if;
-  return 'Listo: ' || p_email || ' ahora es ' || p_rol;
-end $$;
-
-revoke execute on function promover(text, rol_usuario) from public;
-
 insert into salas (nombre)
 select 'Sala ' || g from generate_series(1,8) g
 on conflict (nombre) do nothing;
@@ -91,14 +78,14 @@ cross join lateral (
 ) i
 where not exists (select 1 from productos p where p.nombre = v.nombre);
 
-insert into combos (nombre, descripcion, precio, imagen_url)
-select v.nombre, v.descripcion, v.precio, i.bucket || 'combos/' || i.slug || '.jpg'
+insert into combos (nombre, descripcion, precio, entradas_incluidas, imagen_url)
+select v.nombre, v.descripcion, v.precio, v.entradas_incluidas, i.bucket || 'combos/' || i.slug || '.jpg'
 from (values
-  ('Combo Clásico','Entrada + pochoclos medianos + gaseosa chica',11900),
-  ('Combo Pareja','2 entradas + pochoclos grandes + 2 gaseosas grandes',24500),
-  ('Combo Familiar','4 entradas + 2 pochoclos grandes + 4 gaseosas',46900),
-  ('Combo Dulce','Entrada + pochoclos chicos + caja de chocolates',13200)
-) as v(nombre, descripcion, precio)
+  ('Combo Clásico','Entrada + pochoclos medianos + gaseosa chica',11900,1),
+  ('Combo Pareja','2 entradas + pochoclos grandes + 2 gaseosas grandes',24500,2),
+  ('Combo Familiar','4 entradas + 2 pochoclos grandes + 4 gaseosas',46900,4),
+  ('Combo Dulce','Entrada + pochoclos chicos + caja de chocolates',13200,1)
+) as v(nombre, descripcion, precio, entradas_incluidas)
 cross join lateral (
   select 'https://dubpaswolnuvfczqrzny.supabase.co/storage/v1/object/public/imagenes/' as bucket,
          trim(both '-' from regexp_replace(lower(translate(v.nombre,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) as slug

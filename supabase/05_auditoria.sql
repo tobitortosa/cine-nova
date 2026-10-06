@@ -22,7 +22,7 @@ begin
     if tg_table_name = 'funciones' then
       if new.precio_base is distinct from old.precio_base or new.precio_vip is distinct from old.precio_vip then
         v_accion := 'modificar_precio';
-        v_detalle := jsonb_build_object(
+        v_detalle := v_detalle || jsonb_build_object(
           'precio_base_anterior', old.precio_base, 'precio_base_nuevo', new.precio_base,
           'precio_vip_anterior',  old.precio_vip,  'precio_vip_nuevo',  new.precio_vip);
       end if;
@@ -81,9 +81,4 @@ begin
   end loop;
 end $$;
 
-create or replace function limpiar_reservas_vencidas()
-returns void language sql security definer set search_path = public as $$
-  delete from reservas where expira_en < now();
-$$;
-
-grant execute on function limpiar_reservas_vencidas() to anon, authenticated;
+revoke execute on function fn_auditar() from public, anon, authenticated;

@@ -193,7 +193,7 @@ El retiro del candy bar no pide esta confirmación.
 
 El administrador sube el póster, el banner y las fotos del candy bar desde el formulario, eligiendo el archivo o arrastrándolo, y ve la vista previa antes de guardar. Se sigue pudiendo pegar una URL. Todas las imágenes viven en el bucket, también las de ejemplo: `public/` ya no tiene pósters ni fotos del candy.
 
-- **Un bucket público, `imagenes`** (`10_storage.sql`), con las carpetas `posters/`, `banners/`, `productos/` y `combos/`, un tope de 2 MB y solo JPG, PNG o WEBP. Las imágenes se ven en la cartelera sin iniciar sesión, así que leerlas por su URL pública no pasa por las políticas.
+- **Un bucket público, `imagenes`** (`08_storage.sql`), con las carpetas `posters/`, `banners/`, `productos/` y `combos/`, un tope de 2 MB y solo JPG, PNG o WEBP. Las imágenes se ven en la cartelera sin iniciar sesión, así que leerlas por su URL pública no pasa por las políticas.
 - **Subir y borrar, solo el admin.** En la clase, las políticas de `storage.objects` eran `to anon, authenticated` para insert, select y delete. Como la key pública viaja en el bundle, con esas políticas cualquier visitante podría subir o borrar archivos. Acá insert y delete son `to authenticated` y exigen `public.es_admin()`, la misma función que protege las tablas, y el insert además exige una de las cuatro carpetas y una extensión de imagen. El select también es solo para el admin: el bucket público ya sirve las URLs, y sin select para `anon` nadie puede listar el bucket. No hay política de update, porque una imagen nunca se pisa: se sube otra.
 - **Tres controles:** `ImagenesService.validar()` y `appZonaArchivos` en el navegador, el tamaño y los tipos permitidos del bucket, y la política.
 - **Nombres únicos.** Cada archivo se sube como `carpeta/<crypto.randomUUID()>.<ext>`, porque el nombre original puede traer espacios o tildes. Se sube con `upsert: false` y caché de un año, ya que una ruta nunca cambia de contenido.
@@ -215,7 +215,6 @@ Los pósters, los banners y las fotos del candy bar de los datos de prueba está
 
 - **`scripts/subir-imagenes-seed.mjs`** sube esa carpeta al bucket con la cuenta de un administrador, porque las políticas solo le dejan subir a un admin. Lee la URL y la key pública de `src/environments/environment.ts`, y el email y la contraseña de las variables de entorno `CINENOVA_ADMIN_EMAIL` y `CINENOVA_ADMIN_PASSWORD` (no hay credenciales escritas en el código). Sube cada archivo en la misma ruta con `upsert: false` y caché de un año. Si un archivo ya estaba, lo cuenta como "ya estaba" y sigue, así que se puede correr las veces que haga falta. Al final muestra cuántas imágenes subió, cuántas ya estaban y cuántas fallaron, y si alguna falló termina con error. Al terminar cierra solo la sesión que abrió (`scope: 'local'`), así que no desloguea a quien tenga el panel abierto con la misma cuenta. Con `--simular` lista lo que subiría sin conectarse a nada.
 - **`04_seed.sql`** carga cada película, producto y combo de ejemplo con la URL pública del bucket. Las imágenes van en el mismo insert, así que volver a correrlo no pisa la imagen de nada que ya exista.
-- **`13_imagenes_bucket.sql`** pasa una base que ya tenía las rutas viejas de `public/` a las URLs del bucket: `/posters/<slug>.jpg` a `posters/`, `/posters/<slug>-banner.jpg` a `banners/` y `/candy/<slug>.jpg` a `combos/` si es un `combo-*` o a `productos/` si no. No toca URLs externas ni imágenes vacías. Mientras corre apaga solo los triggers de auditoría de esas tres tablas, para que el log de actividad no se llene de decenas de "cambió imagen" por una migración, y los vuelve a prender en el mismo bloque: si algo falla, se deshace todo junto. No dispara correos, porque el aviso de estreno solo mira la cartelera, la fecha de estreno y la preventa.
 
 Las imágenes de ejemplo se tratan como cualquier otra: si el admin le cambia el póster a una película de ejemplo, la imagen anterior se borra del bucket. El original sigue en `supabase/imagenes/` y el script lo vuelve a subir.
 
@@ -269,33 +268,29 @@ Los scripts están en `supabase/` y se ejecutan en orden:
 
 | Archivo | Contenido |
 |---|---|
-| `01_schema.sql` | Tipos, tablas, índices y triggers |
-| `02_rpc.sql` | Funciones de negocio |
-| `03_rls.sql` | Row Level Security, políticas y permisos |
+| `01_schema.sql` | Tipos, tablas, índices y los triggers que cuidan los datos: butacas de cada sala, horarios sin superponer, funciones con ventas o del pasado, estrenos, duración de las películas, productos con canjes y reseñas |
+| `02_rpc.sql` | Funciones de negocio: alta de funciones, reserva y compra de butacas, regla de menores, cancelación de compras (también las de invitado, con código por correo), validación del QR, canjes, reseñas, reportes y `promover()` |
+| `03_rls.sql` | Row Level Security, políticas y permisos de las tablas y de las funciones del `01` y el `02` |
 | `04_seed.sql` | Datos de prueba |
 | `05_auditoria.sql` | Log de actividad por triggers |
-| `06_usuarios_demo.sql` | Cuentas de prueba |
-| `07_correos.sql` | Envío de correos y apertura automática de ventas |
-| `08_correcciones.sql` | Correcciones: reservas con vencimiento fijo, combos con entradas, permisos, reseñas, reportes por día local y control de envíos de Brevo |
-| `09_cancelacion_invitados.sql` | Cancelación de compras de invitado con código por correo, y compras que solo se modifican por funciones |
-| `10_storage.sql` | Bucket `imagenes` de Supabase Storage y sus políticas: subir, listar y borrar solo el admin |
-| `11_menores.sql` | Regla de menores: columnas nuevas de `compras`, `verificar_adulto()`, `registrar_compra()` con el código del adulto, `validar_qr()` con la confirmación del adulto, aviso en el correo de compra y la cuenta demo `menor@cinenova.app` |
-| `12_funciones_pasado.sql` | `crear_funcion()` rechaza funciones que ya empezaron o que son del pasado |
-| `13_imagenes_bucket.sql` | Pasa las imágenes de ejemplo de las rutas viejas de `public/` a las URLs del bucket, sin dejar filas en el log de actividad |
+| `06_usuarios_demo.sql` | Cuentas de prueba, incluida `menor@cinenova.app` |
+| `07_correos.sql` | Correos (tablas, plantillas, envío por Brevo y sus permisos) y apertura automática de ventas |
+| `08_storage.sql` | Bucket `imagenes` de Supabase Storage y sus políticas: subir, listar y borrar solo el admin |
+
+Cada función, trigger y permiso está en un solo archivo y en su versión final: ningún script reemplaza lo que crea otro.
 
 El orden completo es:
 
-1. Del `01` al `09`, y después `10_storage.sql`, que crea el bucket.
+1. Del `01` al `08`. El `08` crea el bucket.
 2. Subir las imágenes de ejemplo, desde la carpeta del proyecto y con las dependencias instaladas (`npm install`):
    ```bash
    CINENOVA_ADMIN_EMAIL=... CINENOVA_ADMIN_PASSWORD=... node scripts/subir-imagenes-seed.mjs
    ```
    En PowerShell: `$env:CINENOVA_ADMIN_EMAIL='...'; $env:CINENOVA_ADMIN_PASSWORD='...'; node scripts/subir-imagenes-seed.mjs`. La cuenta tiene que ser de administrador. En un proyecto nuevo sirve `admin@cinenova.app`, que crea el `06`. Con `--simular` se ve qué subiría sin conectarse.
-3. `11_menores.sql`, `12_funciones_pasado.sql` y `13_imagenes_bucket.sql`.
 
-Cada script es idempotente: se puede volver a ejecutar sin romper nada. Los scripts posteriores reemplazan funciones, triggers y permisos de los anteriores: el 08 y el 09 los del 01 al 07, el 09 también funciones del 08, el 11 reemplaza `registrar_compra()`, `validar_qr()` y `correo_de_compra()`, y el 12 reemplaza `crear_funcion()` del 02. Por eso, si se vuelve a correr cualquier script, después hay que volver a correr todos los que le siguen, en orden. El 10 solo toca Storage y el 13 solo cambia URLs de imágenes: ninguno de los dos reemplaza nada de los demás. Conviene correrlos sin usuarios en la app; si alguno se corta por un interbloqueo, se vuelve a correr.
+Cada script es idempotente: se puede volver a ejecutar, solo o junto con los demás, sin romper nada y sin duplicar datos. Conviene correrlos sin usuarios en la app; si alguno se corta por un interbloqueo, se vuelve a correr.
 
-El `04` y el `13` tienen escrita la URL pública del bucket de este proyecto, igual que `environment.ts`, `ngsw-config.json` y `url_app` en la tabla `configuracion`. Para usar otro proyecto de Supabase hay que cambiarla en todos esos lugares.
+El `04` tiene escrita la URL pública del bucket de este proyecto, igual que `environment.ts`, `ngsw-config.json` y `url_app` en la tabla `configuracion`. Para usar otro proyecto de Supabase hay que cambiarla en todos esos lugares.
 
 Para que los correos salgan hay que cargar una sola vez, desde el SQL Editor, la clave de la API de Brevo y una dirección de remitente verificada en Brevo:
 
@@ -346,5 +341,3 @@ npm run build
 ```
 
 El build de producción activa el service worker y genera la salida en `dist/cine-nova/browser`. `vercel.json` ya tiene configurado el directorio de salida, la reescritura de rutas para que funcione el enrutamiento del lado del cliente, y las cabeceras de caché del service worker.
-
-En una base que todavía usa las rutas viejas de `public/`, conviene deployar después de subir las imágenes y correr el `13`. Este build ya no trae `public/posters` ni `public/candy`, así que si se deploya antes, las películas y productos de ejemplo muestran la imagen de respaldo hasta que corra el `13`. Al revés no hay problema: la versión anterior de la app también muestra bien las URLs del bucket.

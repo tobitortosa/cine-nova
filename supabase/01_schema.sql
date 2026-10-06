@@ -56,6 +56,11 @@ returns boolean language sql stable security definer set search_path = public as
   select exists (select 1 from public.perfiles where id = auth.uid() and rol in ('empleado','admin'));
 $$;
 
+create or replace function hoy_local()
+returns date language sql stable as $$
+  select (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+$$;
+
 create or replace function public.fn_perfiles_proteger()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -64,6 +69,11 @@ begin
     new.puntos := old.puntos;
     new.credito := old.credito;
     new.cupon_bienvenida_usado := old.cupon_bienvenida_usado;
+    new.email := old.email;
+    new.creado_en := old.creado_en;
+    if old.fecha_nacimiento is not null then
+      new.fecha_nacimiento := old.fecha_nacimiento;
+    end if;
   end if;
   return new;
 end $$;
@@ -79,18 +89,19 @@ create table if not exists generos (
 );
 
 create table if not exists peliculas (
-  id               bigserial primary key,
-  titulo           text not null,
-  sinopsis         text not null default '',
-  duracion_min     int  not null check (duracion_min > 0),
-  imagen_url       text,
-  banner_url       text,
-  restriccion_edad int  not null default 0 check (restriccion_edad in (0,13,18)),
-  fecha_estreno    date,
-  precio_preventa  numeric(10,2),
-  en_cartelera     boolean not null default false,
-  destacada        boolean not null default false,
-  creado_en        timestamptz not null default now()
+  id                bigserial primary key,
+  titulo            text not null,
+  sinopsis          text not null default '',
+  duracion_min      int  not null check (duracion_min > 0),
+  imagen_url        text,
+  banner_url        text,
+  restriccion_edad  int  not null default 0 check (restriccion_edad in (0,13,18)),
+  fecha_estreno     date,
+  precio_preventa   numeric(10,2),
+  en_cartelera      boolean not null default false,
+  destacada         boolean not null default false,
+  creado_en         timestamptz not null default now(),
+  estreno_procesado boolean not null default false
 );
 
 create table if not exists peliculas_generos (
@@ -142,7 +153,7 @@ begin
 end $$;
 
 create or replace function fn_salas_butacas()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   perform generar_butacas(new.id);
   return new;
@@ -169,15 +180,55 @@ create table if not exists funciones (
 );
 
 create or replace function fn_funciones_ocupacion()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_duracion int; v_sala text;
 begin
+  select duracion_min into v_duracion from peliculas where id = new.pelicula_id;
+  if v_duracion is null then
+    raise exception 'La película no existe';
+  end if;
+
+  if tg_op = 'INSERT'
+     or new.inicio is distinct from old.inicio
+     or new.pelicula_id is distinct from old.pelicula_id
+     or new.fin is distinct from old.fin then
+    new.fin := new.inicio + make_interval(mins => v_duracion);
+  end if;
   new.ocupacion := tstzrange(new.inicio, new.fin + interval '30 minutes', '[)');
+
   if new.precio_vip = 0 then
     new.precio_vip := round(new.precio_base * 1.5, 2);
   end if;
   if new.precio_vip < new.precio_base then
     raise exception 'El precio VIP no puede ser menor que el precio estándar';
   end if;
+
+  if tg_op = 'UPDATE'
+     and (new.pelicula_id is distinct from old.pelicula_id
+          or new.inicio is distinct from old.inicio
+          or new.sala_id is distinct from old.sala_id)
+     and funcion_con_ventas(old.id) then
+    if new.pelicula_id is distinct from old.pelicula_id then
+      raise exception 'No se puede cambiar la película de una función con entradas vendidas';
+    end if;
+    raise exception 'No se puede cambiar el horario de una función con entradas vendidas';
+  end if;
+
+  if tg_op = 'UPDATE'
+     and new.inicio is distinct from old.inicio
+     and exists (select 1 from reservas r where r.funcion_id = old.id and r.expira_en > now()) then
+    raise exception 'Hay personas eligiendo butacas para esta función, así que por ahora no se puede cambiar el horario. Probá de nuevo en unos minutos.';
+  end if;
+
+  if exists (select 1 from funciones f
+              where f.sala_id = new.sala_id
+                and f.id <> new.id
+                and f.ocupacion && new.ocupacion) then
+    select nombre into v_sala from salas where id = new.sala_id;
+    raise exception 'Ya hay otra función en % en ese horario. Entre una función y la siguiente tiene que pasar media hora.',
+      coalesce(v_sala, 'esa sala');
+  end if;
+
   return new;
 end $$;
 
@@ -208,12 +259,14 @@ create table if not exists productos (
 );
 
 create table if not exists combos (
-  id          bigserial primary key,
-  nombre      text not null,
-  descripcion text not null default '',
-  precio      numeric(10,2) not null check (precio >= 0),
-  imagen_url  text,
-  activo      boolean not null default true
+  id                 bigserial primary key,
+  nombre             text not null,
+  descripcion        text not null default '',
+  precio             numeric(10,2) not null check (precio >= 0),
+  imagen_url         text,
+  activo             boolean not null default true,
+  entradas_incluidas int not null default 0,
+  constraint combos_entradas_incluidas_rango check (entradas_incluidas between 0 and 10)
 );
 
 create table if not exists cupones (
@@ -252,18 +305,17 @@ create table if not exists compras (
   entrada_validada_en     timestamptz,
   productos_entregados    boolean not null default false,
   productos_entregados_en timestamptz,
-  creado_en               timestamptz not null default now()
+  creado_en               timestamptz not null default now(),
+  medio_pago              medio_pago,
+  tarjeta_marca           text,
+  tarjeta_ultimos4        text,
+  descuento_canjes        numeric(10,2) not null default 0,
+  descuento_combos        numeric(10,2) not null default 0,
+  requiere_adulto         boolean not null default false,
+  adulto_codigo           text references compras(codigo) on delete set null,
+  comprador_mayor         boolean,
+  constraint compras_ultimos4_valido check (tarjeta_ultimos4 is null or tarjeta_ultimos4 ~ '^[0-9]{4}$')
 );
-
-alter table compras add column if not exists medio_pago       medio_pago;
-alter table compras add column if not exists tarjeta_marca    text;
-alter table compras add column if not exists tarjeta_ultimos4 text;
-alter table compras add column if not exists descuento_canjes numeric(10,2) not null default 0;
-
-do $$ begin
-  alter table compras add constraint compras_ultimos4_valido
-    check (tarjeta_ultimos4 is null or tarjeta_ultimos4 ~ '^[0-9]{4}$');
-exception when duplicate_object then null; end $$;
 
 create table if not exists entradas (
   id         bigserial primary key,
@@ -304,7 +356,8 @@ create table if not exists resenias (
   estrellas   int    not null check (estrellas between 1 and 5),
   comentario  text   not null default '',
   creado_en   timestamptz not null default now(),
-  unique (pelicula_id, usuario_id)
+  unique (pelicula_id, usuario_id),
+  constraint resenias_comentario_largo check (char_length(comentario) <= 1000)
 );
 
 create table if not exists canjes (
@@ -313,22 +366,14 @@ create table if not exists canjes (
   recompensa_id   bigint references recompensas(id) on delete set null,
   nombre          text not null,
   puntos_gastados int not null,
-  creado_en       timestamptz not null default now()
+  creado_en       timestamptz not null default now(),
+  codigo          text,
+  tipo            tipo_recompensa,
+  producto_id     bigint references productos(id) on delete set null,
+  usado           boolean not null default false,
+  usado_en        timestamptz,
+  compra_id       bigint references compras(id) on delete set null
 );
-
-alter table canjes add column if not exists codigo      text;
-alter table canjes add column if not exists tipo        tipo_recompensa;
-alter table canjes add column if not exists producto_id bigint references productos(id) on delete set null;
-alter table canjes add column if not exists usado       boolean not null default false;
-alter table canjes add column if not exists usado_en    timestamptz;
-alter table canjes add column if not exists compra_id   bigint references compras(id) on delete set null;
-
-update canjes set codigo = 'CJ' || substr(upper(replace(gen_random_uuid()::text, '-', '')), 1, 8)
- where codigo is null;
-
-update canjes c set tipo = r.tipo, producto_id = r.producto_id
-  from recompensas r
- where r.id = c.recompensa_id and c.tipo is null;
 
 create unique index if not exists canjes_codigo_unico on canjes (codigo);
 
@@ -352,11 +397,150 @@ create table if not exists log_actividad (
   creado_en  timestamptz not null default now()
 );
 
-create index if not exists idx_funciones_pelicula on funciones(pelicula_id);
-create index if not exists idx_funciones_inicio   on funciones(inicio);
-create index if not exists idx_entradas_funcion   on entradas(funcion_id);
-create index if not exists idx_compras_usuario    on compras(usuario_id);
-create index if not exists idx_compras_creado     on compras(creado_en);
-create index if not exists idx_resenias_pelicula  on resenias(pelicula_id);
-create index if not exists idx_reservas_funcion   on reservas(funcion_id);
-create index if not exists idx_log_creado         on log_actividad(creado_en desc);
+create table if not exists cancelaciones_invitado (
+  compra_id      bigint primary key references compras(id) on delete cascade,
+  clave_hash     text not null check (clave_hash ~ '^[0-9a-f]{64}$'),
+  solicitado_por uuid not null references perfiles(id) on delete cascade,
+  expira_en      timestamptz not null,
+  intentos       int not null default 0,
+  envios         int not null default 1,
+  ventana_desde  timestamptz not null default now(),
+  ultimo_envio   timestamptz not null default now(),
+  usado_en       timestamptz
+);
+
+create index if not exists idx_funciones_pelicula    on funciones(pelicula_id);
+create index if not exists idx_funciones_inicio      on funciones(inicio);
+create index if not exists idx_entradas_funcion      on entradas(funcion_id);
+create index if not exists idx_compras_usuario       on compras(usuario_id);
+create index if not exists idx_compras_creado        on compras(creado_en);
+create index if not exists idx_compras_adulto_codigo on compras(adulto_codigo) where adulto_codigo is not null;
+create index if not exists idx_resenias_pelicula     on resenias(pelicula_id);
+create index if not exists idx_reservas_funcion      on reservas(funcion_id);
+create index if not exists idx_log_creado            on log_actividad(creado_en desc);
+
+create or replace function funcion_con_ventas(p_funcion_id bigint)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from entradas e
+                   join compras c on c.id = e.compra_id
+                  where e.funcion_id = p_funcion_id and e.activa and c.estado = 'pagada');
+$$;
+
+create or replace function fn_funciones_proteger_ventas()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if funcion_con_ventas(old.id) then
+    raise exception 'La función del % tiene entradas vendidas y no se puede eliminar. Para retirar la película, sacala de cartelera en lugar de borrarla.',
+      to_char(old.inicio at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI');
+  end if;
+  return old;
+end $$;
+
+drop trigger if exists trg_funciones_proteger_ventas on funciones;
+create trigger trg_funciones_proteger_ventas
+  before delete on funciones
+  for each row execute function fn_funciones_proteger_ventas();
+
+create or replace function fn_funciones_no_pasado()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.inicio is distinct from old.inicio and new.inicio <= now() then
+    raise exception 'No se puede mover una función a un horario que ya empezó o que es del pasado';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_funciones_no_pasado on funciones;
+create trigger trg_funciones_no_pasado
+  before update of inicio on funciones
+  for each row execute function fn_funciones_no_pasado();
+
+create or replace function fn_peliculas_estreno()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.en_cartelera then
+    new.estreno_procesado := true;
+  elsif tg_op = 'UPDATE'
+        and new.fecha_estreno is distinct from old.fecha_estreno
+        and new.fecha_estreno > hoy_local() then
+    new.estreno_procesado := false;
+  elsif tg_op = 'UPDATE' and old.en_cartelera then
+    new.estreno_procesado := true;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_peliculas_estreno on peliculas;
+create trigger trg_peliculas_estreno
+  before insert or update on peliculas
+  for each row execute function fn_peliculas_estreno();
+
+create or replace function fn_peliculas_duracion()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_inicio timestamptz;
+begin
+  select f.inicio into v_inicio
+    from funciones f
+   where f.pelicula_id = new.id
+     and f.inicio > now()
+     and exists (select 1 from funciones o
+                  where o.sala_id = f.sala_id
+                    and o.id <> f.id
+                    and o.ocupacion && tstzrange(f.inicio,
+                                                 f.inicio + make_interval(mins => new.duracion_min) + interval '30 minutes',
+                                                 '[)'))
+   order by f.inicio
+   limit 1;
+
+  if found then
+    raise exception 'Con la nueva duración, la función del % se superpone con otra de la misma sala. Reprogramala antes de cambiar la duración.',
+      to_char(v_inicio at time zone 'America/Argentina/Buenos_Aires', 'DD/MM HH24:MI');
+  end if;
+
+  update funciones set fin = inicio + make_interval(mins => new.duracion_min)
+   where pelicula_id = new.id and inicio > now();
+
+  return new;
+end $$;
+
+drop trigger if exists trg_peliculas_duracion on peliculas;
+create trigger trg_peliculas_duracion
+  after update of duracion_min on peliculas
+  for each row when (new.duracion_min is distinct from old.duracion_min)
+  execute function fn_peliculas_duracion();
+
+create or replace function fn_productos_proteger()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from canjes where producto_id = old.id and not usado) then
+    raise exception 'Ese producto tiene canjes pendientes: desactivalo en lugar de borrarlo';
+  end if;
+  if exists (select 1 from recompensas where producto_id = old.id and activo) then
+    raise exception 'Ese producto es parte de una recompensa activa: desactivalo en lugar de borrarlo, o primero desactivá la recompensa';
+  end if;
+  return old;
+end $$;
+
+drop trigger if exists trg_productos_proteger on productos;
+create trigger trg_productos_proteger
+  before delete on productos
+  for each row execute function fn_productos_proteger();
+
+create or replace function fn_resenias_estreno()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (
+    select 1 from peliculas p
+     where p.id = new.pelicula_id
+       and (p.en_cartelera
+            or (p.fecha_estreno is not null and p.fecha_estreno <= hoy_local())
+            or exists (select 1 from funciones f where f.pelicula_id = p.id and f.inicio <= now()))) then
+    raise exception 'Solo se pueden reseñar películas que ya se estrenaron';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_resenias_estreno on resenias;
+create trigger trg_resenias_estreno
+  before insert or update of pelicula_id on resenias
+  for each row execute function fn_resenias_estreno();
