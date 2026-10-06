@@ -92,13 +92,13 @@
 
     <div class="campo ancho-total">
       <label for="fechaNacimiento">Fecha de nacimiento</label>
-      <app-selector-fecha
+      <app-campo-fecha
         id="fechaNacimiento"
         modo="nacimiento"
         etiqueta="Fecha de nacimiento"
         formControlName="fechaNacimiento"
         [maximo]="hoy" />
-      @if (mostrarError('fechaNacimiento', 'required')) {
+      @if (mostrarError('fechaNacimiento', 'required') && !mostrarError('fechaNacimiento', 'fechaInvalida')) {
         <span class="error-campo">Ingresá tu fecha de nacimiento.</span>
       } @else if (mostrarError('fechaNacimiento', 'futura')) {
         <span class="error-campo">La fecha de nacimiento no puede ser futura.</span>

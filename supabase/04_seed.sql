@@ -20,8 +20,9 @@ insert into generos (nombre) values
   ('Documental'),('Drama'),('Fantasía'),('Suspenso'),('Terror'),('Romance'),('Musical')
 on conflict (nombre) do nothing;
 
-insert into peliculas (titulo, sinopsis, duracion_min, restriccion_edad, en_cartelera, destacada, fecha_estreno, precio_preventa)
-select v.titulo, v.sinopsis, v.duracion_min, v.restriccion_edad, v.en_cartelera, v.destacada, v.fecha_estreno, v.precio_preventa
+insert into peliculas (titulo, sinopsis, duracion_min, restriccion_edad, en_cartelera, destacada, fecha_estreno, precio_preventa, imagen_url, banner_url)
+select v.titulo, v.sinopsis, v.duracion_min, v.restriccion_edad, v.en_cartelera, v.destacada, v.fecha_estreno, v.precio_preventa,
+       i.bucket || 'posters/' || i.slug || '.jpg', i.bucket || 'banners/' || i.slug || '.jpg'
 from (values
   ('Horizonte Cero','Una ingeniera descubre que la estación orbital donde trabaja lleva doce años enviando datos falsos a la Tierra. Para probarlo tiene que llegar al núcleo, el único sector sin cámaras.',142,13,true,true,null,null),
   ('La Última Función','El proyectorista de un cine de barrio a punto de cerrar encuentra una lata de película sin etiqueta. Lo que proyecta esa noche cambia la vida de los siete espectadores que quedaban.',118,0,true,true,null,null),
@@ -37,12 +38,11 @@ from (values
   ('El Sexto Movimiento','Estreno. Un director de orquesta recibe la partitura inconclusa de un compositor muerto hace un siglo y se obsesiona con terminarla.',124,0,false,false,(now()::date + 12),6900),
   ('Tierra Firme','Estreno. Documental sobre tres familias que vuelven a habitar un pueblo que había sido tragado por una inundación veinte años atrás.',101,0,false,false,(now()::date + 20),6500)
 ) as v(titulo, sinopsis, duracion_min, restriccion_edad, en_cartelera, destacada, fecha_estreno, precio_preventa)
+cross join lateral (
+  select 'https://dubpaswolnuvfczqrzny.supabase.co/storage/v1/object/public/imagenes/' as bucket,
+         trim(both '-' from regexp_replace(lower(translate(v.titulo,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) as slug
+) i
 where not exists (select 1 from peliculas p where p.titulo = v.titulo);
-
-update peliculas
-   set imagen_url = '/posters/' || trim(both '-' from regexp_replace(lower(translate(titulo,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) || '.jpg',
-       banner_url = '/posters/' || trim(both '-' from regexp_replace(lower(translate(titulo,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) || '-banner.jpg'
- where imagen_url is null or imagen_url like 'https://placehold%';
 
 insert into peliculas_generos (pelicula_id, genero_id)
 select p.id, g.id from peliculas p, generos g
@@ -66,8 +66,8 @@ insert into categorias (nombre) values
   ('Pochoclos'),('Bebidas'),('Golosinas'),('Salados'),('Helados')
 on conflict (nombre) do nothing;
 
-insert into productos (categoria_id, nombre, descripcion, precio)
-select c.id, v.nombre, v.descripcion, v.precio
+insert into productos (categoria_id, nombre, descripcion, precio, imagen_url)
+select c.id, v.nombre, v.descripcion, v.precio, i.bucket || 'productos/' || i.slug || '.jpg'
 from (values
   ('Pochoclos','Pochoclos chico','Balde de 60g, dulce o salado',3200),
   ('Pochoclos','Pochoclos mediano','Balde de 110g, dulce o salado',4500),
@@ -85,22 +85,25 @@ from (values
   ('Helados','Pote de helado','Dos bochas a elección',4600)
 ) as v(cat, nombre, descripcion, precio)
 join categorias c on c.nombre = v.cat
+cross join lateral (
+  select 'https://dubpaswolnuvfczqrzny.supabase.co/storage/v1/object/public/imagenes/' as bucket,
+         trim(both '-' from regexp_replace(lower(translate(v.nombre,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) as slug
+) i
 where not exists (select 1 from productos p where p.nombre = v.nombre);
 
-insert into combos (nombre, descripcion, precio)
-select * from (values
+insert into combos (nombre, descripcion, precio, imagen_url)
+select v.nombre, v.descripcion, v.precio, i.bucket || 'combos/' || i.slug || '.jpg'
+from (values
   ('Combo Clásico','Entrada + pochoclos medianos + gaseosa chica',11900),
   ('Combo Pareja','2 entradas + pochoclos grandes + 2 gaseosas grandes',24500),
   ('Combo Familiar','4 entradas + 2 pochoclos grandes + 4 gaseosas',46900),
   ('Combo Dulce','Entrada + pochoclos chicos + caja de chocolates',13200)
 ) as v(nombre, descripcion, precio)
+cross join lateral (
+  select 'https://dubpaswolnuvfczqrzny.supabase.co/storage/v1/object/public/imagenes/' as bucket,
+         trim(both '-' from regexp_replace(lower(translate(v.nombre,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) as slug
+) i
 where not exists (select 1 from combos c where c.nombre = v.nombre);
-
-update combos set imagen_url = '/candy/' || trim(both '-' from regexp_replace(lower(translate(nombre,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) || '.jpg'
- where imagen_url is null or imagen_url like 'https://placehold%';
-
-update productos set imagen_url = '/candy/' || trim(both '-' from regexp_replace(lower(translate(nombre,'áéíóúÁÉÍÓÚñÑüÜ','aeiouAEIOUnNuU')),'[^a-z0-9]+','-','g')) || '.jpg'
- where imagen_url is null or imagen_url like 'https://placehold%';
 
 insert into cupones (codigo, descripcion, porcentaje, tipo, edad_minima)
 values

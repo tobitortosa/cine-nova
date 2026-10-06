@@ -47,7 +47,7 @@
         <li class="ficha anim-subir">
           <a class="poster" [routerLink]="['/peliculas', pelicula.pelicula_id]">
             @if (pelicula.imagen_url) {
-              <img [src]="pelicula.imagen_url" [alt]="pelicula.titulo" loading="lazy" />
+              <img appImagenRespaldo [src]="pelicula.imagen_url" [alt]="pelicula.titulo" loading="lazy" />
             } @else {
               <span class="sin-poster" aria-hidden="true">{{ pelicula.titulo.charAt(0) }}</span>
             }

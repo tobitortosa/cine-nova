@@ -8,6 +8,12 @@ import { NotificacionesService } from '../../core/services/notificaciones.servic
 import { ResultadoValidacion } from '../../core/models/modelos';
 import { AvisosComponent } from '../../shared/components/avisos.component';
 import { ZONA_HORARIA, hoyLocal } from '../../shared/utils/ventas';
+import {
+  FORMATO_CODIGO,
+  avisoRestriccion,
+  etiquetaRestriccion,
+  normalizarCodigo,
+} from '../../shared/utils/restriccion';
 
 type ModoValidacion = 'entrada' | 'candy';
 type PestaniaIngreso = 'escanear' | 'manual';
@@ -30,8 +36,11 @@ interface ProductoValidado {
 const ID_LECTOR = 'lector-qr';
 const TOPE_HISTORIAL = 25;
 const CLAVE_MODO = 'cinenova_validador_modo';
-const FORMATO_CODIGO = /^[0-9A-F]{12}$/;
 const OTRO_DIA = /^(La entrada|El pedido) es para /i;
+const MENOR_RECHAZADO = 'Menor sin adulto: ingreso rechazado';
+const VIBRACION_OK = 200;
+const VIBRACION_RECHAZO = [90, 70, 90, 70, 90];
+const VIBRACION_CONFIRMAR = [140, 90, 140];
 
 const TEXTOS_CAMARA: Record<ProblemaCamara, { titulo: string; texto: string }> = {
   permiso: {
@@ -146,9 +155,52 @@ export class ValidadorComponent implements OnDestroy {
     return !!salida && !salida.ok && OTRO_DIA.test(salida.motivo?.trim() ?? '');
   });
 
+  readonly pideConfirmacion = computed(() => {
+    const salida = this.resultado();
+    return !!salida && !salida.ok && salida.requiere_confirmacion === true;
+  });
+
+  readonly restriccionResultado = computed<number | null>(() => {
+    const valor = this.resultado()?.restriccion_edad;
+    return typeof valor === 'number' && Number.isFinite(valor) ? valor : null;
+  });
+
+  readonly chipRestriccion = computed(() => {
+    const valor = this.restriccionResultado();
+    return valor === null ? '' : etiquetaRestriccion(valor);
+  });
+
+  readonly avisoEdadResultado = computed(() => {
+    const valor = this.restriccionResultado() ?? 0;
+    return valor > 0 ? avisoRestriccion(valor) : '';
+  });
+
+  readonly esMenor = computed(
+    () => this.resultado()?.requiere_adulto === true && this.modoResultado() === 'entrada',
+  );
+
+  readonly estadoCompraAdulto = computed(() => {
+    switch (this.resultado()?.adulto_estado) {
+      case 'vigente':
+        return 'Vigente';
+      case 'cancelada':
+        return 'Cancelada';
+      default:
+        return 'Sin datos';
+    }
+  });
+
+  readonly ingresoAdulto = computed(() => {
+    const validada = this.resultado()?.adulto_entrada_validada;
+    if (validada === true) return 'Ya ingresó';
+    if (validada === false) return 'Todavía no ingresó';
+    return 'Sin datos';
+  });
+
   readonly tituloResultado = computed(() => {
     const salida = this.resultado();
     if (!salida) return '';
+    if (this.pideConfirmacion()) return 'VERIFICÁ AL ADULTO';
     if (this.esOtroDia()) return 'NO ES PARA HOY';
     if (!salida.ok) return 'NO VÁLIDA';
     return this.modoResultado() === 'entrada' ? 'ENTRADA VÁLIDA' : 'PRODUCTOS ENTREGADOS';
@@ -304,13 +356,30 @@ export class ValidadorComponent implements OnDestroy {
     setTimeout(() => this.campoCodigo()?.nativeElement.focus(), 60);
   }
 
+  async confirmarAdulto(): Promise<void> {
+    const pendiente = this.resultado();
+    if (!pendiente?.requiere_confirmacion || this.validando()) return;
+
+    await this.validar(pendiente.codigo ?? this.ultimoCodigo(), true);
+  }
+
+  async rechazarIngreso(): Promise<void> {
+    const pendiente = this.resultado();
+    if (!pendiente?.requiere_confirmacion || this.validando()) return;
+
+    this.registrar(pendiente.codigo ?? this.ultimoCodigo(), 'entrada', {
+      ...pendiente,
+      ok: false,
+      motivo: MENOR_RECHAZADO,
+    });
+    this.avisos.info('Ingreso rechazado. La entrada no se marcó como usada.');
+
+    await this.validarOtro();
+  }
+
   normalizar(evento: Event): void {
     const campo = evento.target as HTMLInputElement;
-    const limpio = campo.value
-      .toUpperCase()
-      .replace(/O/g, '0')
-      .replace(/[^0-9A-F]/g, '')
-      .slice(0, 12);
+    const limpio = normalizarCodigo(campo.value);
 
     campo.value = limpio;
     this.formulario.controls.codigo.setValue(limpio, { emitEvent: false });
@@ -355,7 +424,7 @@ export class ValidadorComponent implements OnDestroy {
     await this.validar(texto);
   }
 
-  private async validar(codigo: string): Promise<void> {
+  private async validar(codigo: string, adultoPresente = false): Promise<void> {
     const limpio = (codigo ?? '').trim().toUpperCase();
 
     if (!limpio) {
@@ -363,7 +432,7 @@ export class ValidadorComponent implements OnDestroy {
       return;
     }
 
-    const modoUsado = this.modo();
+    const modoUsado: ModoValidacion = adultoPresente ? 'entrada' : this.modo();
 
     this.validando.set(true);
     this.resultado.set(null);
@@ -371,9 +440,15 @@ export class ValidadorComponent implements OnDestroy {
     this.modoResultado.set(modoUsado);
 
     try {
-      const salida = await this.compras.validarQr(limpio, modoUsado);
+      const salida = await this.compras.validarQr(limpio, modoUsado, adultoPresente);
 
       this.resultado.set(salida);
+
+      if (!salida.ok && salida.requiere_confirmacion) {
+        this.vibrar(VIBRACION_CONFIRMAR);
+        return;
+      }
+
       this.registrar(limpio, modoUsado, salida);
       this.avisar(salida.ok);
 
@@ -406,7 +481,9 @@ export class ValidadorComponent implements OnDestroy {
       modo,
       ok: salida.ok,
       detalle: salida.ok
-        ? (salida.pelicula ?? 'Validación correcta')
+        ? `${salida.pelicula || 'Validación correcta'}${
+            modo === 'entrada' && salida.requiere_adulto ? ' · menor con adulto' : ''
+          }`
         : (salida.motivo?.trim() || 'Rechazada'),
     };
 
@@ -414,7 +491,7 @@ export class ValidadorComponent implements OnDestroy {
   }
 
   private avisar(ok: boolean): void {
-    this.vibrar(ok);
+    this.vibrar(ok ? VIBRACION_OK : VIBRACION_RECHAZO);
 
     if (ok) {
       this.avisos.exito(
@@ -426,10 +503,10 @@ export class ValidadorComponent implements OnDestroy {
     this.avisos.error(this.motivoResultado());
   }
 
-  private vibrar(ok: boolean): void {
+  private vibrar(patron: number | number[]): void {
     try {
       if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
-      navigator.vibrate(ok ? 200 : [90, 70, 90, 70, 90]);
+      navigator.vibrate(patron);
     } catch {
       return;
     }

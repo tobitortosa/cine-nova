@@ -9,6 +9,7 @@ import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { EstrellasComponent } from '../../shared/components/estrellas.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
 import { diasHasta, entradasVendidas, preventaVigente } from '../../shared/utils/ventas';
 
 interface Estreno {
@@ -30,7 +31,15 @@ const TOPE_DESTACADAS = 5;
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, DuracionPipe, PrecioPipe, RestriccionPipe, EstrellasComponent, VacioComponent],
+  imports: [
+    RouterLink,
+    DuracionPipe,
+    PrecioPipe,
+    RestriccionPipe,
+    EstrellasComponent,
+    VacioComponent,
+    ImagenRespaldoDirective,
+  ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
 })

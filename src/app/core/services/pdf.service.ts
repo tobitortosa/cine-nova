@@ -4,6 +4,11 @@ import QRCode from 'qrcode';
 import { ResumenCompra } from '../models/modelos';
 import { textoMedioPago } from '../../shared/pipes/medio-pago.pipe';
 import { ZONA_HORARIA } from '../../shared/utils/ventas';
+import {
+  avisoCompraMenor,
+  avisoRestriccion,
+  etiquetaRestriccion,
+} from '../../shared/utils/restriccion';
 
 const AMBAR: [number, number, number] = [201, 138, 28];
 const TINTA: [number, number, number] = [22, 22, 26];
@@ -13,6 +18,8 @@ const VERDE: [number, number, number] = [30, 140, 92];
 const LADO_QR = 55;
 const SUFIJO_CANJE = /\s*\(canje\)$/i;
 const INICIO_PAGINA = 44;
+const FONDO_ROJO: [number, number, number] = [253, 236, 236];
+const LINEA_AVISO = 3.9;
 
 @Injectable({ providedIn: 'root' })
 export class PdfService {
@@ -60,7 +67,8 @@ export class PdfService {
     if (resumen.funcion?.idioma) {
       etiquetas.push(resumen.funcion.idioma === 'castellano' ? 'Castellano' : 'Subtitulada');
     }
-    etiquetas.push(restriccion > 0 ? `+${restriccion}` : 'ATP');
+    etiquetas.push(etiquetaRestriccion(restriccion));
+    if (compra.requiere_adulto) etiquetas.push('MENOR');
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
@@ -102,25 +110,65 @@ export class PdfService {
       yBloque + 29,
     );
 
-    if (restriccion > 0) {
-      doc.setFillColor(253, 236, 236);
-      doc.setDrawColor(ROJO[0], ROJO[1], ROJO[2]);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(margen, yBloque + 35, anchoIzquierda, 16, 2.5, 2.5, 'FD');
+    let yAviso = yBloque + 35;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      this.tinta(doc, ROJO);
-      const aviso: string[] = doc.splitTextToSize(
-        'Menores deben ingresar acompañados por un adulto',
-        anchoIzquierda - 10,
+    if (restriccion > 0) {
+      yAviso = this.recuadroAviso(
+        doc,
+        null,
+        avisoRestriccion(restriccion),
+        margen,
+        yAviso,
+        anchoIzquierda,
       );
-      doc.text(aviso, margen + 5, yBloque + 42);
+    }
+
+    if (compra.requiere_adulto) {
+      this.recuadroAviso(
+        doc,
+        'MENOR',
+        `${avisoCompraMenor(true, compra.adulto_codigo)}.`,
+        margen,
+        yAviso,
+        anchoIzquierda,
+      );
     }
 
     this.pie(doc, ancho, alto, margen, util);
 
     doc.save(`entrada-${compra.codigo}.pdf`);
+  }
+
+  private recuadroAviso(
+    doc: jsPDF,
+    titulo: string | null,
+    texto: string,
+    x: number,
+    y: number,
+    ancho: number,
+  ): number {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    const lineas: string[] = doc.splitTextToSize(texto, ancho - 10);
+    const altoTitulo = titulo ? 5.5 : 0;
+    const alto = altoTitulo + lineas.length * LINEA_AVISO + 7;
+
+    doc.setFillColor(FONDO_ROJO[0], FONDO_ROJO[1], FONDO_ROJO[2]);
+    doc.setDrawColor(ROJO[0], ROJO[1], ROJO[2]);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(x, y, ancho, alto, 2.5, 2.5, 'FD');
+
+    if (titulo) {
+      doc.setFontSize(10);
+      this.tinta(doc, ROJO);
+      doc.text(titulo, x + 5, y + 6.5);
+      doc.setFontSize(9);
+    }
+
+    this.tinta(doc, ROJO);
+    doc.text(lineas, x + 5, y + 6.5 + altoTitulo);
+
+    return y + alto + 3;
   }
 
   private paginaNueva(doc: jsPDF, ancho: number, alto: number, margen: number): number {

@@ -20,7 +20,7 @@
     <div class="contenedor compra">
       <header class="encabezado anim-aparecer">
         @if (f.pelicula?.imagen_url; as portada) {
-          <img class="portada" [src]="portada" [alt]="f.pelicula?.titulo ?? 'Película'" />
+          <img appImagenRespaldo class="portada" [src]="portada" [alt]="f.pelicula?.titulo ?? 'Película'" />
         } @else {
           <div class="portada sin-portada">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
@@ -61,7 +61,7 @@
       <ol class="pasos">
         @for (etapa of etapas; track etapa.numero) {
           <li [class.activo]="paso() === etapa.numero" [class.hecho]="paso() > etapa.numero">
-            <button type="button" [disabled]="procesando()" (click)="irAPaso(etapa.numero)">
+            <button type="button" [disabled]="procesando() || verificandoAdulto()" (click)="irAPaso(etapa.numero)">
               <span class="burbuja">{{ etapa.numero }}</span>
               <span class="nombre">{{ etapa.nombre }}</span>
             </button>
@@ -74,16 +74,25 @@
           <section class="plano anim-aparecer">
             <div class="lado-mapa">
               @if (restriccion() > 0) {
-                <div class="aviso-edad">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <div class="aviso-edad" [class.aviso-menor]="requiereAdulto() || sinEdadMinima()" role="note">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                     <path d="M12 9v5M12 17.5v.5" />
                     <path d="M10.3 3.9 2.6 17.1A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0z" />
                   </svg>
-                  <p>
-                    <strong>{{ f.pelicula?.restriccion_edad | restriccion }}</strong>
-                    Esta película tiene restricción de edad. Los menores deben ingresar acompañados
-                    por un adulto y te vamos a pedir la fecha de nacimiento al pagar.
-                  </p>
+                  <div class="texto-aviso-edad">
+                    <p>
+                      <strong>{{ f.pelicula?.restriccion_edad | restriccion }}</strong>
+                      {{ avisoEdad() }}
+                      @if (edadComprador() === null) {
+                        Te vamos a pedir tu fecha de nacimiento al pagar.
+                      }
+                    </p>
+                    @if (sinEdadMinima()) {
+                      <p class="aviso-clave">{{ textoSinEdad() }}</p>
+                    } @else if (requiereAdulto()) {
+                      <p class="aviso-clave">{{ avisoMenor }}</p>
+                    }
+                  </div>
                 </div>
               }
 
@@ -111,7 +120,7 @@
                                 [class.vip]="vista.butaca.tipo === 'vip'"
                                 [class.accesible]="vista.butaca.tipo === 'accesible'"
                                 [class.elegida]="vista.seleccionada"
-                                [disabled]="vista.estado !== 'libre'"
+                                [disabled]="vista.estado !== 'libre' || (bloqueadoPorEdad() && !vista.seleccionada)"
                                 [attr.aria-pressed]="vista.seleccionada"
                                 [attr.aria-label]="descripcionButaca(vista)"
                                 [title]="descripcionButaca(vista)"
@@ -211,7 +220,7 @@
               <button
                 type="button"
                 class="btn btn-primario ancho"
-                [disabled]="carrito.butacas().length === 0"
+                [disabled]="carrito.butacas().length === 0 || bloqueadoPorEdad()"
                 (click)="irAPaso(2)"
               >Continuar</button>
             </aside>
@@ -235,7 +244,7 @@
                     <article class="producto destacado">
                       <div class="imagen">
                         @if (combo.imagen_url; as imagen) {
-                          <img [src]="imagen" [alt]="combo.nombre" />
+                          <img appImagenRespaldo [src]="imagen" [alt]="combo.nombre" loading="lazy" />
                         } @else {
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M6 9h12l-1 11H7L6 9z" />
@@ -297,7 +306,7 @@
                     <article class="producto">
                       <div class="imagen">
                         @if (producto.imagen_url; as imagen) {
-                          <img [src]="imagen" [alt]="producto.nombre" />
+                          <img appImagenRespaldo [src]="imagen" [alt]="producto.nombre" loading="lazy" />
                         } @else {
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M6 9h12l-1 11H7L6 9z" />
@@ -474,20 +483,137 @@
                 @if (necesitaNacimiento()) {
                   <div class="campo">
                     <label for="nacimiento">Fecha de nacimiento</label>
-                    <app-selector-fecha
+                    <app-campo-fecha
                       id="nacimiento"
                       modo="nacimiento"
                       etiqueta="Fecha de nacimiento"
                       formControlName="fechaNacimiento"
                       [maximo]="hoy"
                     />
-                    @if (formulario.controls.fechaNacimiento.touched && formulario.controls.fechaNacimiento.invalid) {
+                    @if (formulario.controls.fechaNacimiento.touched && formulario.controls.fechaNacimiento.hasError('required') && !formulario.controls.fechaNacimiento.hasError('fechaInvalida')) {
                       <span class="error-campo">Necesitamos tu fecha de nacimiento para esta película</span>
+                    } @else if (sinEdadMinima()) {
+                      <span class="error-campo">{{ textoSinEdad() }}</span>
                     }
-                    <span class="ayuda">Esta función es para mayores de {{ restriccion() }} años.</span>
+                    <span class="ayuda">{{ avisoEdad() }}</span>
                   </div>
                 }
               </section>
+
+              @if (requiereAdulto()) {
+                <section class="panel adulto anim-aparecer" aria-labelledby="titulo-adulto">
+                  <h3 id="titulo-adulto">¿Con quién venís?</h3>
+
+                  <p class="nota-adulto">
+                    <strong>Compra de un menor.</strong>
+                    Elegí cómo viene el adulto que te acompaña: en la puerta el personal confirma
+                    que está con vos.
+                  </p>
+
+                  <div class="opciones-adulto" role="radiogroup" aria-labelledby="titulo-adulto">
+                    <label class="medio" [class.activo]="opcionAdulto() === 'en-compra'">
+                      <input type="radio" name="acompaniante" formControlName="acompaniante" value="en-compra" />
+                      <span class="icono-medio" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="8.5" cy="7" r="3" />
+                          <path d="M2.5 20v-1.5a6 6 0 0 1 12 0V20" />
+                          <circle cx="17" cy="9" r="2.3" />
+                          <path d="M16.5 14a4.5 4.5 0 0 1 5 4.5V20" />
+                        </svg>
+                      </span>
+                      <span class="texto-medio">
+                        <strong>El adulto viene en esta compra</strong>
+                        <small>Sumá su butaca junto a la tuya.</small>
+                      </span>
+                      <span class="punto-medio" aria-hidden="true"></span>
+                    </label>
+
+                    <label class="medio" [class.activo]="opcionAdulto() === 'con-codigo'">
+                      <input type="radio" name="acompaniante" formControlName="acompaniante" value="con-codigo" />
+                      <span class="icono-medio" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" />
+                          <path d="M14 6v12" stroke-dasharray="2 2" />
+                        </svg>
+                      </span>
+                      <span class="texto-medio">
+                        <strong>El adulto ya tiene su entrada</strong>
+                        <small>Ingresá el código de su compra para esta función.</small>
+                      </span>
+                      <span class="punto-medio" aria-hidden="true"></span>
+                    </label>
+                  </div>
+
+                  @switch (opcionAdulto()) {
+                    @case ('en-compra') {
+                      @if (faltaButacaAdulto()) {
+                        <div class="estado-adulto con-error" role="alert">
+                          <p>
+                            Elegiste una sola butaca. Volvé al paso de butacas y sumá la del adulto
+                            que te acompaña para poder pagar.
+                          </p>
+                          <button type="button" class="btn btn-secundario chico" [disabled]="procesando()" (click)="irAPaso(1)">
+                            Volver a las butacas
+                          </button>
+                        </div>
+                      } @else {
+                        <p class="estado-adulto listo" role="status">
+                          ✓ Listo: el adulto que te acompaña viene en esta compra
+                          ({{ carrito.butacas().length }} butacas).
+                        </p>
+                      }
+                    }
+                    @case ('con-codigo') {
+                      <div class="campo codigo-adulto">
+                        <label for="codigo-adulto">Código de la compra del adulto</label>
+                        <div class="fila-cupon">
+                          <input
+                            id="codigo-adulto"
+                            class="mono"
+                            type="text"
+                            formControlName="codigoAdulto"
+                            placeholder="Ej: 89465B49E8E8"
+                            autocomplete="off"
+                            autocapitalize="characters"
+                            spellcheck="false"
+                            aria-describedby="estado-codigo-adulto"
+                            [class.con-error]="verificacionAdulto()?.ok === false"
+                            (keydown.enter)="$event.preventDefault(); verificarAdulto()"
+                          />
+                          <button
+                            type="button"
+                            class="btn btn-secundario"
+                            [disabled]="verificandoAdulto() || procesando() || adultoVerificado()"
+                            (click)="verificarAdulto()"
+                          >
+                            @if (verificandoAdulto()) {
+                              Verificando...
+                            } @else if (adultoVerificado()) {
+                              Verificado
+                            } @else {
+                              Verificar
+                            }
+                          </button>
+                        </div>
+                        <div id="estado-codigo-adulto" class="estado-codigo" aria-live="polite">
+                          @if (verificacionAdulto(); as verificacion) {
+                            @if (verificacion.ok) {
+                              <span class="ok-campo">✓ {{ verificacion.motivo }}</span>
+                            } @else {
+                              <span class="error-campo">{{ verificacion.motivo }}</span>
+                            }
+                          } @else {
+                            <span class="ayuda">
+                              Son los 12 caracteres que aparecen debajo del QR de su entrada. Tiene que
+                              ser una compra para esta misma función.
+                            </span>
+                          }
+                        </div>
+                      </div>
+                    }
+                  }
+                </section>
+              }
 
               <section class="panel">
                 <h3>Descuentos y beneficios</h3>
@@ -944,7 +1070,7 @@
                 <button
                   type="submit"
                   class="btn btn-primario"
-                  [disabled]="procesando() || aplicandoCupon() || carrito.butacas().length === 0 || excesoEntradas()"
+                  [disabled]="procesando() || aplicandoCupon() || verificandoAdulto() || carrito.butacas().length === 0 || excesoEntradas()"
                 >
                   @if (procesando()) {
                     Procesando...
@@ -958,7 +1084,7 @@
                     Confirmar sin cargo
                   }
                 </button>
-                <button type="button" class="btn btn-secundario" [disabled]="procesando()" (click)="irAPaso(2)">Volver</button>
+                <button type="button" class="btn btn-secundario" [disabled]="procesando() || verificandoAdulto()" (click)="irAPaso(2)">Volver</button>
               </div>
 
               <p class="seguridad">

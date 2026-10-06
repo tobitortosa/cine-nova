@@ -10,6 +10,7 @@ import {
   RespuestaCodigoCancelacion,
   ResultadoValidacion,
   ResumenCompra,
+  VerificacionAdulto,
 } from '../models/modelos';
 
 const SIN_CONEXION_COMPRA =
@@ -31,7 +32,10 @@ export class ComprasService {
     canjes?: string[];
     pago?: DatosPago | null;
     totalEsperado?: number | null;
+    adultoCodigo?: string | null;
   }): Promise<Compra> {
+    const adultoCodigo = datos.adultoCodigo?.trim().toUpperCase();
+
     const { data, error, status } = await this.supabase.client.rpc('registrar_compra', {
       p_funcion_id: datos.funcionId,
       p_butacas: datos.butacas,
@@ -52,6 +56,7 @@ export class ComprasService {
       p_tarjeta_marca: datos.pago?.marca ?? null,
       p_tarjeta_ultimos4: datos.pago?.ultimos4 ?? null,
       p_total_esperado: datos.totalEsperado ?? null,
+      ...(adultoCodigo ? { p_adulto_codigo: adultoCodigo } : {}),
     });
 
     if (error) {
@@ -151,10 +156,32 @@ export class ComprasService {
     return (data ?? []) as MiPelicula[];
   }
 
-  async validarQr(codigo: string, tipo: 'entrada' | 'candy'): Promise<ResultadoValidacion> {
+  async verificarAdulto(funcionId: number, codigo: string): Promise<VerificacionAdulto> {
+    const { data, error } = await this.supabase.client.rpc('verificar_adulto', {
+      p_funcion_id: funcionId,
+      p_codigo: codigo.trim().toUpperCase(),
+    });
+
+    if (error) {
+      throw new Error(error.message || 'No pudimos verificar el código de la compra del adulto');
+    }
+
+    if (!data) {
+      return { ok: false, motivo: 'El código no existe' };
+    }
+
+    return data as VerificacionAdulto;
+  }
+
+  async validarQr(
+    codigo: string,
+    tipo: 'entrada' | 'candy',
+    adultoPresente = false,
+  ): Promise<ResultadoValidacion> {
     const { data, error } = await this.supabase.client.rpc('validar_qr', {
       p_codigo: codigo,
       p_tipo: tipo,
+      ...(adultoPresente ? { p_adulto_presente: true } : {}),
     });
 
     if (error) {

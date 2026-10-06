@@ -7,6 +7,7 @@ import { Categoria, Combo, ItemCarrito, Producto } from '../../core/models/model
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
 import { MAXIMO_BUTACAS, entradasIncluidas } from '../../shared/utils/ventas';
 
 interface GrupoCandy {
@@ -17,7 +18,7 @@ interface GrupoCandy {
 
 @Component({
   selector: 'app-candy',
-  imports: [RouterLink, PrecioPipe, CargandoComponent, VacioComponent],
+  imports: [RouterLink, PrecioPipe, CargandoComponent, VacioComponent, ImagenRespaldoDirective],
   templateUrl: './candy.component.html',
   styleUrl: './candy.component.scss',
 })

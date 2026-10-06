@@ -32,6 +32,7 @@
           <div class="imagen">
             @if (pelicula.banner_url || pelicula.imagen_url) {
               <img
+                appImagenRespaldo
                 [src]="pelicula.banner_url ?? pelicula.imagen_url"
                 [alt]="'Imagen de ' + pelicula.titulo"
                 [attr.loading]="$first ? 'eager' : 'lazy'" />
@@ -52,7 +53,7 @@
                 @for (genero of pelicula.generos ?? []; track genero.id) {
                   <span class="chip">{{ genero.nombre }}</span>
                 }
-                <span class="chip">{{ pelicula.restriccion_edad | restriccion }}</span>
+                <span class="chip" [class.chip-peligro]="pelicula.restriccion_edad > 0">{{ pelicula.restriccion_edad | restriccion }}</span>
                 <span class="chip">{{ pelicula.duracion_min | duracion }}</span>
               </div>
 

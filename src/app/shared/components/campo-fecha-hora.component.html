@@ -1,0 +1,40 @@
+<div class="fecha-hora" role="group" [attr.aria-labelledby]="prefijo + '-titulo'">
+  <span class="titulo" [id]="prefijo + '-titulo'">{{ etiqueta() }}</span>
+
+  <div class="partes">
+    <div class="parte">
+      <label class="rotulo" [for]="prefijo + '-dia'">Día</label>
+      <app-campo-fecha
+        etiqueta="Día"
+        [id]="prefijo + '-dia'"
+        [atajos]="atajos"
+        [minimo]="fechaMinima()"
+        [valor]="fecha()"
+        (valorChange)="cambiarFecha($event)"
+        (completa)="pasarALaHora()" />
+    </div>
+
+    <div class="parte">
+      <label class="rotulo" [for]="prefijo + '-hora'">Hora</label>
+      <app-campo-hora
+        etiqueta="Hora"
+        [id]="prefijo + '-hora'"
+        [sugeridos]="sugeridos"
+        [minimo]="horaMinima()"
+        [valor]="hora()"
+        (valorChange)="cambiarHora($event)" />
+    </div>
+  </div>
+
+  <div
+    class="resumen"
+    aria-live="polite"
+    [class.sin-elegir]="!momento()"
+    [class.con-error]="antesDelMinimo()">
+    <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+    <span class="texto">{{ resumen() }}</span>
+  </div>
+</div>

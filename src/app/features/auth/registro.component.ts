@@ -13,7 +13,7 @@ import { NotificacionesService } from '../../core/services/notificaciones.servic
 import { PromocionesService } from '../../core/services/promociones.service';
 import { Cupon } from '../../core/models/modelos';
 import { destinoDespuesDeIngresar, volverAValido } from '../../core/guards/destino';
-import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
+import { CampoFechaComponent } from '../../shared/components/campo-fecha.component';
 import {
   COLORES_OJOS,
   TIPOS_SANGRE,
@@ -31,7 +31,7 @@ const contraseniasIguales: ValidatorFn = (grupo: AbstractControl): ValidationErr
 
 @Component({
   selector: 'app-registro',
-  imports: [ReactiveFormsModule, RouterLink, SelectorFechaComponent],
+  imports: [ReactiveFormsModule, RouterLink, CampoFechaComponent],
   templateUrl: './registro.component.html',
   styleUrl: './registro.component.scss',
 })

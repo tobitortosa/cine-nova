@@ -34,8 +34,8 @@
 
 .filtros {
   display: grid;
-  grid-template-columns: minmax(200px, 2fr) repeat(2, minmax(130px, 1fr)) auto;
-  align-items: end;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(200px, 1fr)) auto;
+  align-items: start;
   gap: 14px;
   padding: 16px;
   margin-bottom: 22px;
@@ -48,7 +48,8 @@
   }
 
   .limpiar {
-    height: 42px;
+    height: 48px;
+    margin-top: calc(0.8rem * 1.6 + 6px);
   }
 }
 
@@ -458,38 +459,6 @@
   }
 }
 
-.reloj {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  padding: 14px;
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-}
-
-.sub {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--c-text-faint);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.grilla-horas {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 5px;
-}
-
-.grilla-minutos {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-}
-
 .semanas {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -524,13 +493,42 @@
   }
 }
 
-.elegido {
-  margin: 10px 0 0;
+.previa {
+  padding: 13px 15px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+
+.previa-titulo {
+  margin: 0;
   color: var(--c-text-soft);
   font-size: 0.84rem;
+  line-height: 1.5;
 
   strong {
     color: var(--c-accent-soft);
+  }
+}
+
+.previa-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: 4px 10px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-full);
+    color: var(--c-text);
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 }
 
@@ -579,12 +577,13 @@
   background: var(--c-surface-2);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .filtros {
     grid-template-columns: 1fr 1fr;
 
     .limpiar {
       grid-column: 1 / -1;
+      margin-top: 0;
     }
   }
 }
@@ -647,8 +646,7 @@
     }
   }
 
-  .par,
-  .reloj {
+  .par {
     grid-template-columns: 1fr;
   }
 

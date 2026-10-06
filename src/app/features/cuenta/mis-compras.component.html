@@ -31,7 +31,7 @@
         <li class="tarjeta compra anim-subir">
           <div class="afiche" aria-hidden="true">
             @if (aficheDe(compra); as imagen) {
-              <img [src]="imagen" [alt]="tituloDe(compra)" loading="lazy" />
+              <img appImagenRespaldo [src]="imagen" [alt]="tituloDe(compra)" loading="lazy" />
             } @else {
               <span class="sin-afiche">{{ tituloDe(compra).charAt(0) }}</span>
             }
@@ -51,6 +51,10 @@
                 @default {
                   <span class="chip chip-ok">Pagada</span>
                 }
+              }
+
+              @if (avisoMenorDe(compra); as aviso) {
+                <span class="chip chip-peligro" [title]="aviso">Menor</span>
               }
             </div>
 

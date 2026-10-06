@@ -10,7 +10,9 @@ import { MedioPagoPipe } from '../../shared/pipes/medio-pago.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
 import { ZONA_HORARIA } from '../../shared/utils/ventas';
+import { avisoCompraMenor } from '../../shared/utils/restriccion';
 
 const MARGEN_CANCELACION_MS = 2 * 60 * 60 * 1000;
 
@@ -24,6 +26,7 @@ const MARGEN_CANCELACION_MS = 2 * 60 * 60 * 1000;
     CargandoComponent,
     VacioComponent,
     ConfirmarComponent,
+    ImagenRespaldoDirective,
   ],
   templateUrl: './mis-compras.component.html',
   styleUrl: './mis-compras.component.scss',
@@ -159,6 +162,10 @@ export class MisComprasComponent implements OnInit {
   entradasDe(compra: Compra): number | null {
     const resumen = this.detalles().get(compra.id);
     return resumen ? resumen.butacas.length : null;
+  }
+
+  avisoMenorDe(compra: Compra): string {
+    return avisoCompraMenor(compra.requiere_adulto, compra.adulto_codigo);
   }
 
   estadoDe(compra: Compra): 'cancelada' | 'utilizada' | 'pagada' {

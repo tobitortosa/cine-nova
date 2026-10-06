@@ -5,6 +5,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ComprasService } from '../../core/services/compras.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
+import { SoloDigitosDirective } from '../../shared/directives/solo-digitos.directive';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { ZONA_HORARIA } from '../../shared/utils/ventas';
 
@@ -12,7 +13,7 @@ type Paso = 'inicio' | 'codigo';
 
 @Component({
   selector: 'app-cancelar-invitado',
-  imports: [ReactiveFormsModule, RouterLink, ConfirmarComponent],
+  imports: [ReactiveFormsModule, RouterLink, ConfirmarComponent, SoloDigitosDirective],
   templateUrl: './cancelar-invitado.component.html',
   styleUrl: './cancelar-invitado.component.scss',
 })

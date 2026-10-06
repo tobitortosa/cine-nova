@@ -495,6 +495,11 @@
     border: 2px solid rgb(240 82 79 / 0.6);
     background: linear-gradient(170deg, rgb(240 82 79 / 0.26), rgb(240 82 79 / 0.08));
   }
+
+  &.confirmar {
+    border: 2px solid rgb(245 180 60 / 0.7);
+    background: linear-gradient(170deg, rgb(245 180 60 / 0.26), rgb(245 180 60 / 0.07));
+  }
 }
 
 .sello {
@@ -523,6 +528,12 @@
   color: var(--c-danger);
 }
 
+.confirmar .sello {
+  background: rgb(245 180 60 / 0.2);
+  border: 3px solid var(--c-accent);
+  color: var(--c-accent);
+}
+
 @keyframes entrar-sello {
   from {
     opacity: 0;
@@ -546,6 +557,123 @@
 
 .rechazado .veredicto {
   color: var(--c-danger);
+}
+
+.confirmar .veredicto {
+  color: var(--c-accent-soft);
+}
+
+.marcas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: -4px;
+}
+
+.marca-edad,
+.marca-menor {
+  padding: 5px 14px;
+  border-radius: var(--r-full);
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.marca-edad {
+  background: var(--c-surface-3);
+  color: var(--c-text-soft);
+
+  &.restringida {
+    background: rgb(240 82 79 / 0.2);
+    border: 1px solid rgb(240 82 79 / 0.55);
+    color: #ffb3b1;
+  }
+}
+
+.marca-menor {
+  background: var(--c-danger);
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.nota-edad {
+  margin: -4px 0 0;
+  max-width: 440px;
+  font-size: 0.9rem;
+  color: var(--c-text-soft);
+}
+
+.bloque-menor {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid rgb(240 82 79 / 0.5);
+  border-radius: var(--r-md);
+  background: rgb(240 82 79 / 0.12);
+  text-align: left;
+}
+
+.titulo-menor {
+  margin: 0 0 10px;
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffb3b1;
+}
+
+.datos-adulto {
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: rgb(10 11 16 / 0.45);
+
+  .fila {
+    padding: 10px 12px;
+  }
+
+  .bien {
+    color: var(--c-success);
+  }
+
+  .mal {
+    color: var(--c-danger);
+  }
+
+  .alerta {
+    color: var(--c-accent-soft);
+  }
+}
+
+.codigo-adulto {
+  font-family: 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+  letter-spacing: 0.1em;
+}
+
+.alerta-adulto,
+.texto-menor {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.alerta-adulto {
+  color: #ffb3b1;
+}
+
+.texto-menor {
+  margin-top: 0;
+  color: var(--c-text);
+}
+
+.acciones-adulto {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
 }
 
 .codigo-resultado {

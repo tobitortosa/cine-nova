@@ -78,17 +78,15 @@
               <a class="menu-item" routerLink="/cuenta/peliculas" (click)="cerrarTodo()" role="menuitem">Mis películas</a>
               <a class="menu-item" routerLink="/cuenta/puntos" (click)="cerrarTodo()" role="menuitem">Mis puntos</a>
 
-              @if (auth.esEmpleado()) {
+              <ng-container *appSiRol="['empleado', 'admin']">
                 <div class="menu-separador"></div>
-                @if (auth.esAdmin()) {
-                  <a class="menu-item destacado" routerLink="/admin" (click)="cerrarTodo()" role="menuitem">
-                    Panel de administración
-                  </a>
-                }
+                <a *appSiRol="'admin'" class="menu-item destacado" routerLink="/admin" (click)="cerrarTodo()" role="menuitem">
+                  Panel de administración
+                </a>
                 <a class="menu-item destacado" routerLink="/empleado" (click)="cerrarTodo()" role="menuitem">
                   Validar entradas
                 </a>
-              }
+              </ng-container>
 
               <div class="menu-separador"></div>
               <button type="button" class="menu-item salir" (click)="salir()" role="menuitem">Cerrar sesión</button>

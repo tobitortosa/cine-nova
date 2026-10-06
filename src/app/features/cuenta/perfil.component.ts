@@ -7,7 +7,7 @@ import { PromocionesService } from '../../core/services/promociones.service';
 import { Cupon } from '../../core/models/modelos';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
-import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
+import { CampoFechaComponent } from '../../shared/components/campo-fecha.component';
 import {
   COLORES_OJOS,
   TIPOS_SANGRE,
@@ -24,7 +24,7 @@ import { hoyLocal } from '../../shared/utils/ventas';
     ReactiveFormsModule,
     PrecioPipe,
     CargandoComponent,
-    SelectorFechaComponent,
+    CampoFechaComponent,
   ],
   templateUrl: './perfil.component.html',
   styleUrl: './perfil.component.scss',

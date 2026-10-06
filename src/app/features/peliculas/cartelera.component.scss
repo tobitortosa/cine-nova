@@ -228,6 +228,11 @@
   color: var(--c-text);
 }
 
+.edad.chip-peligro {
+  background: rgb(240 82 79 / .82);
+  color: #fff;
+}
+
 .destacada {
   position: absolute;
   top: 10px;

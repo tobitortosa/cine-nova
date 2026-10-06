@@ -26,6 +26,8 @@ import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { EstrellasComponent } from '../../shared/components/estrellas.component';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
+import { avisoRestriccion, edadMinimaLegible } from '../../shared/utils/restriccion';
 import {
   DIAS_PREVENTA,
   finDePreventa,
@@ -57,6 +59,7 @@ interface GrupoFunciones {
     EstrellasComponent,
     CargandoComponent,
     VacioComponent,
+    ImagenRespaldoDirective,
   ],
   templateUrl: './detalle-pelicula.component.html',
   styleUrl: './detalle-pelicula.component.scss',
@@ -118,6 +121,10 @@ export class DetallePeliculaComponent {
   }));
 
   readonly ventaHabilitada = computed(() => ventaAbierta(this.pelicula()));
+
+  readonly avisoEdad = computed(() => avisoRestriccion(this.pelicula()?.restriccion_edad));
+
+  readonly edadMinima = computed(() => edadMinimaLegible(this.pelicula()?.restriccion_edad));
 
   readonly enPreventa = computed(() => preventaVigente(this.pelicula()));
 

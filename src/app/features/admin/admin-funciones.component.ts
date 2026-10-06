@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal, viewChildren } from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
@@ -12,12 +12,23 @@ import { PeliculasService } from '../../core/services/peliculas.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { FormatoFuncion, Funcion, IdiomaFuncion, Pelicula } from '../../core/models/modelos';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
-import { SelectorFechaHoraComponent } from '../../shared/components/selector-fecha-hora.component';
-import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
+import { AtajoFecha, CampoFechaComponent } from '../../shared/components/campo-fecha.component';
+import { CampoFechaHoraComponent } from '../../shared/components/campo-fecha-hora.component';
+import { CampoHoraComponent } from '../../shared/components/campo-hora.component';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ConfirmarComponent } from '../../shared/components/confirmar.component';
 import { entradasVendidas, preventaVigente } from '../../shared/utils/ventas';
+import {
+  DIAS_LARGOS,
+  HORARIOS_SUGERIDOS,
+  MESES,
+  capitalizar,
+  dosDigitos,
+  esHoraValida,
+  textoLocal,
+} from '../../shared/utils/fechas';
+import { funcionesDeSerie } from '../../shared/utils/series';
 
 interface GrupoDia {
   clave: string;
@@ -45,8 +56,9 @@ const precioVipValido: ValidatorFn = (grupo: AbstractControl): ValidationErrors 
   imports: [
     ReactiveFormsModule,
     PrecioPipe,
-    SelectorFechaHoraComponent,
-    SelectorFechaComponent,
+    CampoFechaComponent,
+    CampoFechaHoraComponent,
+    CampoHoraComponent,
     CargandoComponent,
     VacioComponent,
     ConfirmarComponent,
@@ -59,6 +71,9 @@ export class AdminFuncionesComponent implements OnInit {
   private readonly peliculasServicio = inject(PeliculasService);
   private readonly avisos = inject(NotificacionesService);
   private readonly fb = inject(FormBuilder);
+
+  private readonly camposFecha = viewChildren(CampoFechaComponent);
+  private pedidoActual = 0;
 
   readonly lista = signal<Funcion[]>([]);
   readonly peliculas = signal<Pelicula[]>([]);
@@ -93,8 +108,17 @@ export class AdminFuncionesComponent implements OnInit {
   readonly formatos: FormatoFuncion[] = ['2D', '3D', '4D', '5D'];
   readonly idiomas: IdiomaFuncion[] = ['castellano', 'subtitulada'];
   readonly semanasPosibles: number[] = [1, 2, 3, 4, 5, 6, 7, 8];
-  readonly horas: number[] = Array.from({ length: 24 }, (_, indice) => indice);
-  readonly minutos: number[] = Array.from({ length: 12 }, (_, indice) => indice * 5);
+  readonly horariosSugeridos = HORARIOS_SUGERIDOS;
+
+  readonly atajosDesde: AtajoFecha[] = [
+    { texto: 'Hoy', dias: 0 },
+    { texto: 'Mañana', dias: 1 },
+  ];
+
+  readonly atajosHasta: AtajoFecha[] = [
+    { texto: 'Hoy', dias: 0 },
+    { texto: '+7 días', dias: 7 },
+  ];
 
   readonly diasSemana: OpcionDia[] = [
     { valor: 1, etiqueta: 'Lun' },
@@ -106,7 +130,7 @@ export class AdminFuncionesComponent implements OnInit {
     { valor: 0, etiqueta: 'Dom' },
   ];
 
-  readonly minimoFecha = this.textoLocal(new Date());
+  readonly minimoFecha = signal(textoLocal(new Date()));
 
   readonly formulario = this.fb.nonNullable.group(
     {
@@ -178,6 +202,25 @@ export class AdminFuncionesComponent implements OnInit {
     );
   });
 
+  readonly previaSerie = computed(() =>
+    funcionesDeSerie(this.diasSerie(), this.horaSerie(), this.semanas(), new Date()),
+  );
+
+  readonly cantidadPrevia = computed(() => {
+    const cantidad = this.previaSerie().length;
+    return cantidad === 1 ? '1 función' : cantidad + ' funciones';
+  });
+
+  readonly motivoSinPrevia = computed(() => {
+    if (this.diasSerie().length === 0) {
+      return 'Elegí al menos un día para ver qué funciones se van a crear.';
+    }
+    if (!esHoraValida(this.horaSerie())) {
+      return 'Escribí el horario (HH:MM) para ver qué funciones se van a crear.';
+    }
+    return 'Con esos días y semanas no queda ninguna función por delante: sumá semanas o elegí otros días.';
+  });
+
   readonly resumenHorarioActual = computed(() => {
     const funcion = this.editando();
     if (!funcion) return '';
@@ -195,6 +238,7 @@ export class AdminFuncionesComponent implements OnInit {
   }
 
   async cargar(): Promise<void> {
+    const pedido = ++this.pedidoActual;
     this.cargando.set(true);
     try {
       const filtro: { desde?: string; hasta?: string; peliculaId?: number } = {};
@@ -214,11 +258,15 @@ export class AdminFuncionesComponent implements OnInit {
         filtro.hasta = new Date(this.momentoDelDia(hasta, 1).getTime() - 1).toISOString();
       }
 
-      this.lista.set(await this.funciones.listar(filtro));
+      const datos = await this.funciones.listar(filtro);
+      if (pedido !== this.pedidoActual) return;
+      this.lista.set(datos);
     } catch (e) {
-      this.avisos.error(e instanceof Error ? e.message : 'No se pudieron cargar las funciones');
+      if (pedido === this.pedidoActual) {
+        this.avisos.error(e instanceof Error ? e.message : 'No se pudieron cargar las funciones');
+      }
     } finally {
-      this.cargando.set(false);
+      if (pedido === this.pedidoActual) this.cargando.set(false);
     }
   }
 
@@ -238,6 +286,7 @@ export class AdminFuncionesComponent implements OnInit {
   }
 
   async limpiarFiltros(): Promise<void> {
+    for (const campo of this.camposFecha()) campo.vaciar();
     this.filtroPelicula.set('');
     this.filtroDesde.set('');
     this.filtroHasta.set('');
@@ -248,6 +297,7 @@ export class AdminFuncionesComponent implements OnInit {
     this.editando.set(null);
     this.vendidasEditando.set(null);
     this.inicioOriginal = '';
+    this.minimoFecha.set(textoLocal(new Date()));
     this.formulario.controls.peliculaId.enable();
     this.modo.set('unica');
     this.formulario.reset({ peliculaId: '', precio: 6500, precioVip: 0 });
@@ -268,7 +318,8 @@ export class AdminFuncionesComponent implements OnInit {
       return;
     }
 
-    const inicioLocal = this.textoLocal(new Date(funcion.inicio));
+    const inicioLocal = textoLocal(new Date(funcion.inicio));
+    this.minimoFecha.set(textoLocal(new Date()));
     this.editando.set(funcion);
     this.inicioOriginal = inicioLocal;
     this.modo.set('unica');
@@ -335,20 +386,8 @@ export class AdminFuncionesComponent implements OnInit {
     return this.diasSerie().includes(valor);
   }
 
-  horaElegida(): number {
-    return Number(this.horaSerie().slice(0, 2));
-  }
-
-  minutoElegido(): number {
-    return Number(this.horaSerie().slice(3, 5));
-  }
-
-  elegirHora(valor: number): void {
-    this.horaSerie.set(this.dosDigitos(valor) + ':' + this.dosDigitos(this.minutoElegido()));
-  }
-
-  elegirMinuto(valor: number): void {
-    this.horaSerie.set(this.dosDigitos(this.horaElegida()) + ':' + this.dosDigitos(valor));
+  cambiarHoraSerie(valor: string): void {
+    this.horaSerie.set(valor);
   }
 
   cambiarInicio(valor: string): void {
@@ -415,7 +454,12 @@ export class AdminFuncionesComponent implements OnInit {
   ): Promise<void> {
     const momento = this.inicio();
     if (momento.length < 16) {
-      this.errorPanel.set('Elegí el día y el horario de la función.');
+      this.errorPanel.set('Escribí el día y el horario de la función.');
+      return;
+    }
+
+    if (new Date(momento).getTime() <= Date.now()) {
+      this.errorPanel.set('La función tiene que empezar después de este momento.');
       return;
     }
 
@@ -451,7 +495,7 @@ export class AdminFuncionesComponent implements OnInit {
 
     if (cambiaHorario) {
       if (momento.length < 16) {
-        this.errorPanel.set('Elegí el día y el horario de la función.');
+        this.errorPanel.set('Escribí el día y el horario de la función.');
         return;
       }
       if (new Date(momento).getTime() <= Date.now()) {
@@ -492,6 +536,18 @@ export class AdminFuncionesComponent implements OnInit {
       return;
     }
 
+    if (!esHoraValida(this.horaSerie())) {
+      this.errorPanel.set('Escribí el horario de la serie en formato HH:MM, por ejemplo 18:00.');
+      return;
+    }
+
+    if (funcionesDeSerie(this.diasSerie(), this.horaSerie(), this.semanas()).length === 0) {
+      this.errorPanel.set(
+        'Con esos días y semanas no queda ninguna función por delante: sumá semanas o elegí otros días.',
+      );
+      return;
+    }
+
     this.guardando.set(true);
     try {
       const resultado = await this.funciones.crearSerie(
@@ -508,12 +564,18 @@ export class AdminFuncionesComponent implements OnInit {
       this.erroresSerie.set(resultado.errores);
 
       if (resultado.creadas > 0) {
-        this.avisos.exito('Se crearon ' + resultado.creadas + ' funciones de la serie.');
+        this.avisos.exito(
+          resultado.creadas === 1
+            ? 'Se creó 1 función de la serie.'
+            : 'Se crearon ' + resultado.creadas + ' funciones de la serie.',
+        );
       }
 
       if (resultado.errores.length > 0) {
         const mensaje =
-          'Quedaron ' + resultado.errores.length + ' funciones sin crear. Revisá el detalle.';
+          resultado.errores.length === 1
+            ? 'Quedó 1 función sin crear. Revisá el detalle.'
+            : 'Quedaron ' + resultado.errores.length + ' funciones sin crear. Revisá el detalle.';
         this.errorPanel.set(mensaje);
         this.avisos.error(mensaje);
       } else if (resultado.creadas === 0) {
@@ -576,23 +638,16 @@ export class AdminFuncionesComponent implements OnInit {
 
   horaDe(iso: string): string {
     const fecha = new Date(iso);
-    return this.dosDigitos(fecha.getHours()) + ':' + this.dosDigitos(fecha.getMinutes());
+    return dosDigitos(fecha.getHours()) + ':' + dosDigitos(fecha.getMinutes());
   }
 
   fechaCorta(iso: string): string {
     const fecha = new Date(iso);
-    return this.dosDigitos(fecha.getDate()) + '/' + this.dosDigitos(fecha.getMonth() + 1);
+    return dosDigitos(fecha.getDate()) + '/' + dosDigitos(fecha.getMonth() + 1);
   }
 
   private claveDia(iso: string): string {
-    const fecha = new Date(iso);
-    return (
-      fecha.getFullYear() +
-      '-' +
-      this.dosDigitos(fecha.getMonth() + 1) +
-      '-' +
-      this.dosDigitos(fecha.getDate())
-    );
+    return textoLocal(new Date(iso)).slice(0, 10);
   }
 
   private etiquetaDia(clave: string): string {
@@ -602,26 +657,9 @@ export class AdminFuncionesComponent implements OnInit {
       Number(clave.slice(8, 10)),
     );
 
-    const dias = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-    const meses = [
-      'enero',
-      'febrero',
-      'marzo',
-      'abril',
-      'mayo',
-      'junio',
-      'julio',
-      'agosto',
-      'septiembre',
-      'octubre',
-      'noviembre',
-      'diciembre',
-    ];
-
-    const texto =
-      dias[fecha.getDay()] + ' ' + fecha.getDate() + ' de ' + meses[fecha.getMonth()];
-
-    return texto.charAt(0).toUpperCase() + texto.slice(1);
+    return capitalizar(
+      DIAS_LARGOS[fecha.getDay()] + ' ' + fecha.getDate() + ' de ' + MESES[fecha.getMonth()],
+    );
   }
 
   private momentoDelDia(clave: string, diasDespues: number): Date {
@@ -630,23 +668,5 @@ export class AdminFuncionesComponent implements OnInit {
       Number(clave.slice(5, 7)) - 1,
       Number(clave.slice(8, 10)) + diasDespues,
     );
-  }
-
-  private textoLocal(fecha: Date): string {
-    return (
-      fecha.getFullYear() +
-      '-' +
-      this.dosDigitos(fecha.getMonth() + 1) +
-      '-' +
-      this.dosDigitos(fecha.getDate()) +
-      'T' +
-      this.dosDigitos(fecha.getHours()) +
-      ':' +
-      this.dosDigitos(fecha.getMinutes())
-    );
-  }
-
-  dosDigitos(valor: number): string {
-    return valor < 10 ? '0' + valor : '' + valor;
   }
 }

@@ -1,0 +1,185 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.caja {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 5px 8px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  cursor: text;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.caja:hover:not(.deshabilitada) {
+  border-color: var(--c-surface-3);
+}
+
+.caja:focus-within {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px rgb(245 180 60 / .14);
+}
+
+.caja.con-error,
+:host(.ng-invalid.ng-touched) .caja {
+  border-color: var(--c-danger);
+}
+
+.caja.con-error:focus-within {
+  box-shadow: 0 0 0 3px rgb(240 82 79 / .16);
+}
+
+.caja.deshabilitada {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.segmento {
+  width: 2.4em;
+  min-width: 0;
+  padding: 6px 2px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  box-shadow: none;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  caret-color: var(--c-accent);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.segmento.largo {
+  width: 3.6em;
+}
+
+.segmento::placeholder {
+  color: var(--c-text-faint);
+  opacity: 1;
+}
+
+.segmento:focus {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+  background: rgb(245 180 60 / .16);
+  color: var(--c-accent-soft);
+}
+
+.segmento:focus::placeholder {
+  color: rgb(255 210 127 / .55);
+}
+
+.segmento:disabled {
+  cursor: not-allowed;
+}
+
+.separador,
+.sufijo {
+  color: var(--c-text-faint);
+  font-weight: 600;
+  user-select: none;
+}
+
+.sufijo {
+  margin-left: 4px;
+  font-size: .85rem;
+}
+
+.borrar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--c-text-faint);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+.borrar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.borrar:hover {
+  background: rgb(240 82 79 / .12);
+  border-color: rgb(240 82 79 / .4);
+  color: var(--c-danger);
+}
+
+.detalle {
+  min-height: 1.3em;
+  margin: 6px 0 0;
+  font-size: .78rem;
+  line-height: 1.3;
+  color: var(--c-text-soft);
+}
+
+.detalle.error {
+  color: var(--c-danger);
+}
+
+.atajos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.atajo {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-full);
+  color: var(--c-text-soft);
+  font-size: .76rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+.atajo:hover:not(:disabled) {
+  background: rgb(245 180 60 / .12);
+  border-color: rgb(245 180 60 / .4);
+  color: var(--c-accent);
+}
+
+.atajo.activo {
+  background: rgb(245 180 60 / .16);
+  border-color: var(--c-accent);
+  color: var(--c-accent-soft);
+}
+
+.atajo:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+.borrar:focus-visible,
+.atajo:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .segmento {
+    font-size: 16px;
+  }
+
+  .atajo {
+    padding: 7px 13px;
+  }
+}

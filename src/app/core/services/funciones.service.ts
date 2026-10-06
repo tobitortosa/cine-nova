@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { Funcion, FormatoFuncion, IdiomaFuncion, Sala } from '../models/modelos';
+import { esHoraValida } from '../../shared/utils/fechas';
+import { funcionesDeSerie } from '../../shared/utils/series';
 
 const CAMPOS_FUNCION = '*, pelicula:peliculas(*), sala:salas(*)';
 
@@ -97,7 +99,11 @@ export class FuncionesService {
     });
 
     if (error) {
-      throw new Error(error.message || 'No se pudo crear la función');
+      throw new Error(
+        error.code === '23P01'
+          ? 'No hay salas disponibles en ese horario: entre una función y la siguiente tiene que pasar media hora. Probá con otro horario.'
+          : error.message || 'No se pudo crear la función',
+      );
     }
 
     const fila = Array.isArray(data) ? data[0] : data;
@@ -118,53 +124,24 @@ export class FuncionesService {
     precio: number,
     precioVip: number,
   ): Promise<{ creadas: number; errores: string[] }> {
-    const partes = hora.split(':');
-    const horas = Number(partes[0]);
-    const minutos = Number(partes[1] ?? '0');
-
-    if (!Number.isFinite(horas) || !Number.isFinite(minutos)) {
+    if (!esHoraValida(hora)) {
       throw new Error('La hora indicada no es válida');
     }
 
-    const dias = Array.from(new Set(diasSemana)).sort((a, b) => a - b);
-    if (dias.length === 0) {
+    if (diasSemana.length === 0) {
       throw new Error('Elegí al menos un día de la semana');
     }
-
-    const ahora = new Date();
-    const domingoBase = new Date(
-      ahora.getFullYear(),
-      ahora.getMonth(),
-      ahora.getDate() - ahora.getDay(),
-    );
 
     let creadas = 0;
     const errores: string[] = [];
 
-    for (let semana = 0; semana < semanas; semana++) {
-      for (const dia of dias) {
-        const fecha = new Date(domingoBase);
-        fecha.setDate(domingoBase.getDate() + semana * 7 + dia);
-        fecha.setHours(horas, minutos, 0, 0);
-
-        if (fecha.getTime() <= ahora.getTime()) {
-          continue;
-        }
-
-        try {
-          await this.crear(
-            peliculaId,
-            this.aTextoLocal(fecha),
-            formato,
-            idioma,
-            precio,
-            precioVip,
-          );
-          creadas++;
-        } catch (e) {
-          const motivo = e instanceof Error ? e.message : 'No se pudo crear la función';
-          errores.push(`${this.etiqueta(fecha)} — ${motivo}`);
-        }
+    for (const funcion of funcionesDeSerie(diasSemana, hora, semanas)) {
+      try {
+        await this.crear(peliculaId, funcion.inicio, formato, idioma, precio, precioVip);
+        creadas++;
+      } catch (e) {
+        const motivo = e instanceof Error ? e.message : 'No se pudo crear la función';
+        errores.push(`${funcion.etiqueta} — ${motivo}`);
       }
     }
 
@@ -303,28 +280,5 @@ export class FuncionesService {
 
     const guardada = (new Date(funcion.fin).getTime() - new Date(funcion.inicio).getTime()) / 60000;
     return Number.isFinite(guardada) && guardada > 0 ? Math.round(guardada) : 120;
-  }
-
-  private aTextoLocal(fecha: Date): string {
-    const anio = fecha.getFullYear();
-    const mes = this.dosDigitos(fecha.getMonth() + 1);
-    const dia = this.dosDigitos(fecha.getDate());
-    const horas = this.dosDigitos(fecha.getHours());
-    const minutos = this.dosDigitos(fecha.getMinutes());
-
-    return `${anio}-${mes}-${dia}T${horas}:${minutos}`;
-  }
-
-  private etiqueta(fecha: Date): string {
-    const dia = this.dosDigitos(fecha.getDate());
-    const mes = this.dosDigitos(fecha.getMonth() + 1);
-    const horas = this.dosDigitos(fecha.getHours());
-    const minutos = this.dosDigitos(fecha.getMinutes());
-
-    return `${dia}/${mes} ${horas}:${minutos}`;
-  }
-
-  private dosDigitos(valor: number): string {
-    return String(valor).padStart(2, '0');
   }
 }

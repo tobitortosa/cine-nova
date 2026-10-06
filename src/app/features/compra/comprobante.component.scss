@@ -484,6 +484,24 @@
   }
 }
 
+.restriccion.menor {
+  margin-top: 12px;
+  border-style: dashed;
+}
+
+.menor-marca {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  border-radius: var(--r-full);
+  background: var(--c-danger);
+  color: #fff;
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
 .restriccion-marca {
   display: grid;
   place-items: center;

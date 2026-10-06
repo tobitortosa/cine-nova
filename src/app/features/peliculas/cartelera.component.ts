@@ -8,10 +8,18 @@ import { DuracionPipe } from '../../shared/pipes/duracion.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { EstrellasComponent } from '../../shared/components/estrellas.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
 
 @Component({
   selector: 'app-cartelera',
-  imports: [RouterLink, DuracionPipe, RestriccionPipe, EstrellasComponent, VacioComponent],
+  imports: [
+    RouterLink,
+    DuracionPipe,
+    RestriccionPipe,
+    EstrellasComponent,
+    VacioComponent,
+    ImagenRespaldoDirective,
+  ],
   templateUrl: './cartelera.component.html',
   styleUrl: './cartelera.component.scss',
 })

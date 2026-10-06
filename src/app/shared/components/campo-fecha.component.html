@@ -1,0 +1,94 @@
+<div class="campo-tipeado" (focusin)="alEntrar()" (focusout)="alSalirDelGrupo($event)">
+  <div
+    class="caja"
+    role="group"
+    [attr.aria-label]="etiqueta()"
+    [class.con-error]="mostrarError()"
+    [class.deshabilitada]="deshabilitado()"
+    (click)="alClickearCaja($event)">
+    <input
+      #campoDia
+      appSoloDigitos
+      type="text"
+      class="segmento"
+      maxlength="2"
+      placeholder="DD"
+      aria-label="Día"
+      [attr.id]="id() || null"
+      [attr.autocomplete]="modo() === 'nacimiento' ? 'bday-day' : 'off'"
+      [attr.aria-describedby]="prefijo + '-detalle'"
+      [attr.aria-invalid]="mostrarError()"
+      [value]="dia()"
+      [disabled]="deshabilitado()"
+      (input)="alEscribir('dia', $event)"
+      (keydown)="alTeclear('dia', $event)"
+      (click)="seleccionar($event)"
+      (paste)="alPegar($event)"
+      (blur)="alSalirDeParte('dia')" />
+    <span class="separador" aria-hidden="true">/</span>
+    <input
+      #campoMes
+      appSoloDigitos
+      type="text"
+      class="segmento"
+      maxlength="2"
+      placeholder="MM"
+      aria-label="Mes"
+      [attr.autocomplete]="modo() === 'nacimiento' ? 'bday-month' : 'off'"
+      [attr.aria-describedby]="prefijo + '-detalle'"
+      [attr.aria-invalid]="mostrarError()"
+      [value]="mes()"
+      [disabled]="deshabilitado()"
+      (input)="alEscribir('mes', $event)"
+      (keydown)="alTeclear('mes', $event)"
+      (click)="seleccionar($event)"
+      (paste)="alPegar($event)"
+      (blur)="alSalirDeParte('mes')" />
+    <span class="separador" aria-hidden="true">/</span>
+    <input
+      #campoAnio
+      appSoloDigitos
+      type="text"
+      class="segmento largo"
+      maxlength="4"
+      placeholder="AAAA"
+      aria-label="Año"
+      [attr.autocomplete]="modo() === 'nacimiento' ? 'bday-year' : 'off'"
+      [attr.aria-describedby]="prefijo + '-detalle'"
+      [attr.aria-invalid]="mostrarError()"
+      [value]="anio()"
+      [disabled]="deshabilitado()"
+      (input)="alEscribir('anio', $event)"
+      (keydown)="alTeclear('anio', $event)"
+      (click)="seleccionar($event)"
+      (paste)="alPegar($event)"
+      (blur)="alSalirDeParte('anio')" />
+
+    @if (borrable() && hayTexto() && !deshabilitado()) {
+      <button type="button" class="borrar" aria-label="Borrar fecha" title="Borrar fecha" (click)="borrar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M7 7l10 10M17 7 7 17" />
+        </svg>
+      </button>
+    }
+  </div>
+
+  <p class="detalle" aria-live="polite" [id]="prefijo + '-detalle'" [class.error]="mostrarError()">{{ detalle() }}</p>
+
+  @if (opcionesAtajos().length > 0 && !deshabilitado()) {
+    <div class="atajos" role="group" aria-label="Atajos">
+      @for (atajo of opcionesAtajos(); track atajo.texto) {
+        <button
+          type="button"
+          class="atajo"
+          [class.activo]="atajo.clave === estado().clave"
+          [attr.aria-pressed]="atajo.clave === estado().clave"
+          [attr.title]="atajo.descripcion"
+          [disabled]="atajo.deshabilitado"
+          (click)="elegirAtajo(atajo.clave)">
+          {{ atajo.texto }}
+        </button>
+      }
+    </div>
+  }
+</div>

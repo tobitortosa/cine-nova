@@ -5,9 +5,9 @@ import { NotificacionesService } from '../../core/services/notificaciones.servic
 import { ReportesService } from '../../core/services/reportes.service';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
-import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
+import { CampoFechaComponent } from '../../shared/components/campo-fecha.component';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
-import { MESES } from '../../shared/utils/calendario';
+import { MESES } from '../../shared/utils/fechas';
 
 type Agrupacion = 'semana' | 'mes';
 type Atajo = 'hoy' | 'semana' | 'mes';
@@ -66,7 +66,7 @@ function aFecha(iso: string): Date {
 
 @Component({
   selector: 'app-admin-reportes',
-  imports: [ReactiveFormsModule, CargandoComponent, VacioComponent, SelectorFechaComponent, PrecioPipe],
+  imports: [ReactiveFormsModule, CargandoComponent, VacioComponent, CampoFechaComponent, PrecioPipe],
   templateUrl: './admin-reportes.component.html',
   styleUrl: './admin-reportes.component.scss',
 })

@@ -36,12 +36,22 @@ import {
   TipoButaca,
 } from '../../core/models/modelos';
 import { CargandoComponent } from '../../shared/components/cargando.component';
-import { SelectorFechaComponent } from '../../shared/components/selector-fecha.component';
+import { CampoFechaComponent } from '../../shared/components/campo-fecha.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ButacaPipe } from '../../shared/pipes/butaca.pipe';
 import { DuracionPipe } from '../../shared/pipes/duracion.pipe';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
+import {
+  FORMATO_CODIGO,
+  avisoRestriccion,
+  debajoDeEdadMinima,
+  edadDesde,
+  edadMinimaLegible,
+  necesitaAdulto,
+  normalizarCodigo,
+} from '../../shared/utils/restriccion';
 import {
   DIAS_PREVENTA,
   MAXIMO_BUTACAS,
@@ -73,6 +83,14 @@ type EstadoVisual = 'libre' | 'vendida' | 'reservada';
 type CampoTarjeta = 'numero' | 'vencimiento' | 'cvv' | 'titular';
 
 type FasePago = 'pago' | 'registro';
+
+type OpcionAdulto = 'en-compra' | 'con-codigo';
+
+interface VerificacionVista {
+  codigo: string;
+  ok: boolean;
+  motivo: string;
+}
 
 interface ButacaVista {
   butaca: Butaca;
@@ -139,6 +157,7 @@ interface FotoCompra {
   usarCredito: number;
   canjes: string[];
   fechaNacimiento: string | null;
+  adultoCodigo: string | null;
   medio: MedioCobrable;
   numero: string;
   total: number;
@@ -169,6 +188,22 @@ const COMBO_SIN_LUGAR =
   'Para sumar este combo elegí más butacas: cada entrada que incluye ocupa una de tus butacas.';
 const BIENVENIDA_USADA = 'Ya usaste el cupón de bienvenida';
 const SOLO_PRIMERA_COMPRA = 'El cupón de bienvenida es solo para tu primera compra';
+const AVISO_MENOR =
+  'Como sos menor de 18, necesitás venir con un adulto: sumá su butaca a esta compra o tené a mano el código de su compra.';
+const ELEGIR_ADULTO =
+  'Como sos menor de 18, elegí con quién venís: sumá la butaca del adulto o ingresá el código de su compra';
+const FALTA_BUTACA_ADULTO =
+  'Elegiste una sola butaca: volvé al paso de butacas y sumá la del adulto que te acompaña';
+const CODIGO_ADULTO_INCOMPLETO =
+  'El código de la compra del adulto tiene 12 caracteres: números del 0 al 9 y letras de la A a la F';
+const VERIFICAR_ADULTO = 'No pudimos verificar el código de la compra del adulto';
+const RECHAZOS_ADULTO = [
+  'El código no existe',
+  'Esa compra es de otra función',
+  'Esa compra está cancelada',
+  'Esa compra no tiene entradas activas',
+  'No pudimos verificar que esa compra sea de un adulto',
+];
 
 function aCentavos(monto: number | null | undefined): number {
   return Math.round(Number(monto ?? 0) * 100);
@@ -194,12 +229,13 @@ const FALTANTES: Record<CampoTarjeta, string> = {
     RouterLink,
     ReactiveFormsModule,
     CargandoComponent,
-    SelectorFechaComponent,
+    CampoFechaComponent,
     VacioComponent,
     ButacaPipe,
     DuracionPipe,
     PrecioPipe,
     RestriccionPipe,
+    ImagenRespaldoDirective,
   ],
   templateUrl: './comprar.component.html',
   styleUrl: './comprar.component.scss',
@@ -236,6 +272,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
   readonly topeUnidades = TOPE_UNIDADES;
   readonly hoy = hoyLocal();
   readonly mensajeExceso = EXCESO_ENTRADAS;
+  readonly avisoMenor = AVISO_MENOR;
 
   readonly paso = signal(1);
   readonly cargando = signal(true);
@@ -266,9 +303,17 @@ export class ComprarComponent implements OnInit, OnDestroy {
   readonly errorPago = signal<string | null>(null);
   readonly emailDeCuenta = signal(false);
 
+  readonly fechaDeclarada = signal('');
+  readonly opcionAdulto = signal<OpcionAdulto | null>(null);
+  readonly codigoAdulto = signal('');
+  readonly verificacionAdulto = signal<VerificacionVista | null>(null);
+  readonly verificandoAdulto = signal(false);
+
   readonly formulario = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email, Validators.pattern(EMAIL_COMPLETO)]],
     fechaNacimiento: [''],
+    acompaniante: this.fb.nonNullable.control<OpcionAdulto | ''>(''),
+    codigoAdulto: [''],
     cupon: [''],
     usarCredito: [false],
     medio: this.fb.nonNullable.control<MedioCobrable>('tarjeta_credito', Validators.required),
@@ -378,6 +423,34 @@ export class ComprarComponent implements OnInit, OnDestroy {
   readonly necesitaNacimiento = computed(
     () => this.restriccion() > 0 && !this.auth.perfil()?.fecha_nacimiento,
   );
+
+  readonly avisoEdad = computed(() => avisoRestriccion(this.restriccion()));
+
+  readonly edadComprador = computed(() => this.auth.edad() ?? edadDesde(this.fechaDeclarada()));
+
+  readonly sinEdadMinima = computed(() =>
+    debajoDeEdadMinima(this.restriccion(), this.edadComprador()),
+  );
+
+  readonly bloqueadoPorEdad = computed(() =>
+    debajoDeEdadMinima(this.restriccion(), this.auth.edad()),
+  );
+
+  readonly textoSinEdad = computed(
+    () =>
+      `${edadMinimaLegible(this.restriccion())}: con tu edad no podés comprar entradas para esta película.`,
+  );
+
+  readonly requiereAdulto = computed(() =>
+    necesitaAdulto(this.restriccion(), this.edadComprador()),
+  );
+
+  readonly faltaButacaAdulto = computed(() => this.carrito.butacas().length < 2);
+
+  readonly adultoVerificado = computed(() => {
+    const verificacion = this.verificacionAdulto();
+    return !!verificacion && verificacion.ok && verificacion.codigo === this.codigoAdulto();
+  });
 
   readonly creditoDisponible = computed(() => this.auth.perfil()?.credito ?? 0);
 
@@ -590,6 +663,25 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }),
     );
 
+    this.vigilantes.add(
+      this.formulario.controls.fechaNacimiento.valueChanges.subscribe((valor) =>
+        this.fechaDeclarada.set(valor ?? ''),
+      ),
+    );
+
+    this.vigilantes.add(
+      this.formulario.controls.acompaniante.valueChanges.subscribe((opcion) => {
+        this.opcionAdulto.set(opcion || null);
+        if (!this.procesando()) this.errorPago.set(null);
+      }),
+    );
+
+    this.vigilantes.add(
+      this.formulario.controls.codigoAdulto.valueChanges.subscribe((valor) =>
+        this.alCambiarCodigoAdulto(valor),
+      ),
+    );
+
     const crudo = this.ruta.snapshot.paramMap.get('funcionId');
     const id = Number(crudo);
 
@@ -677,7 +769,12 @@ export class ComprarComponent implements OnInit, OnDestroy {
   }
 
   async irAPaso(numero: number): Promise<void> {
-    if (numero === this.paso() || this.procesando()) return;
+    if (numero === this.paso() || this.procesando() || this.verificandoAdulto()) return;
+
+    if (numero > this.paso() && this.bloqueadoPorEdad()) {
+      this.avisos.error(this.textoSinEdad());
+      return;
+    }
 
     if (numero > this.paso()) {
       await this.colaReservas;
@@ -721,6 +818,11 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
   async alternar(vista: ButacaVista): Promise<void> {
     if (vista.estado !== 'libre') return;
+
+    if (!vista.seleccionada && this.bloqueadoPorEdad()) {
+      this.avisos.error(this.textoSinEdad());
+      return;
+    }
 
     if (!vista.seleccionada && this.carrito.butacas().length >= MAXIMO_BUTACAS) {
       this.avisos.error(`Podés elegir hasta ${MAXIMO_BUTACAS} butacas por compra`);
@@ -841,6 +943,44 @@ export class ComprarComponent implements OnInit, OnDestroy {
     return this.router.url;
   }
 
+  async verificarAdulto(forzar = false): Promise<void> {
+    const funcion = this.funcion();
+    const codigo = this.codigoAdulto();
+
+    if (!funcion || this.verificandoAdulto() || this.procesando() || this.destruido) return;
+
+    if (!FORMATO_CODIGO.test(codigo)) {
+      this.verificacionAdulto.set({ codigo, ok: false, motivo: CODIGO_ADULTO_INCOMPLETO });
+      return;
+    }
+
+    if (!forzar && this.adultoVerificado()) return;
+
+    this.verificandoAdulto.set(true);
+
+    try {
+      const respuesta = await this.compras.verificarAdulto(funcion.id, codigo);
+      if (this.destruido || this.codigoAdulto() !== codigo) return;
+
+      const ok = respuesta.ok === true;
+      this.verificacionAdulto.set({
+        codigo,
+        ok,
+        motivo:
+          respuesta.motivo?.trim() || (ok ? 'Entrada de adulto verificada' : VERIFICAR_ADULTO),
+      });
+    } catch (e) {
+      if (this.destruido || this.codigoAdulto() !== codigo) return;
+      this.verificacionAdulto.set({
+        codigo,
+        ok: false,
+        motivo: e instanceof Error ? e.message : VERIFICAR_ADULTO,
+      });
+    } finally {
+      this.verificandoAdulto.set(false);
+    }
+  }
+
   async aplicarCupon(): Promise<void> {
     const codigo = this.formulario.controls.cupon.value.trim();
 
@@ -870,7 +1010,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }
 
       if (encontrado.tipo === 'edad') {
-        const edad = this.edadDelComprador();
+        const edad = this.edadComprador();
         if (edad === null || edad < (encontrado.edad_minima ?? 0)) {
           throw new Error('Este cupón no aplica a tu edad');
         }
@@ -975,7 +1115,15 @@ export class ComprarComponent implements OnInit, OnDestroy {
 
   async confirmar(): Promise<void> {
     const funcion = this.funcion();
-    if (!funcion || this.procesando() || this.aplicandoCupon() || this.destruido) return;
+    if (
+      !funcion ||
+      this.procesando() ||
+      this.aplicandoCupon() ||
+      this.verificandoAdulto() ||
+      this.destruido
+    ) {
+      return;
+    }
 
     if (this.carrito.butacas().length === 0) {
       this.avisos.error('Elegí al menos una butaca para comprar');
@@ -1006,7 +1154,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
     const minima = this.restriccion();
 
     if (minima > 0) {
-      const edad = this.edadDelComprador();
+      const edad = this.edadComprador();
 
       if (edad === null) {
         this.avisos.error('Necesitamos tu fecha de nacimiento para esta película');
@@ -1014,14 +1162,23 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }
 
       if (edad < minima) {
-        this.avisos.error(`Esta película es solo para mayores de ${minima} años`);
+        this.avisos.error(this.textoSinEdad());
         return;
       }
+    }
+
+    const sinAdulto = await this.motivoSinAdulto();
+    if (this.destruido || this.procesando() || this.paso() !== 3) return;
+
+    if (sinAdulto) {
+      this.avisos.error(sinAdulto);
+      return;
     }
 
     const totalEnPantalla = aCentavos(this.total());
     const butacasAlConfirmar = this.carrito.butacas().map((butaca) => butaca.id);
     let pago: DatosPago | null = null;
+    let adultoEnviado: string | null = null;
 
     this.procesando.set(true);
     this.formulario.disable({ emitEvent: false });
@@ -1093,10 +1250,15 @@ export class ComprarComponent implements OnInit, OnDestroy {
         usarCredito: this.creditoUsado(),
         canjes: this.canjesAplicados().map((canje) => canje.codigo),
         fechaNacimiento: valores.fechaNacimiento || null,
+        adultoCodigo:
+          this.requiereAdulto() && this.opcionAdulto() === 'con-codigo' && this.adultoVerificado()
+            ? this.codigoAdulto()
+            : null,
         medio: valores.medio,
         numero: valores.tarjeta.numero,
         total: this.total(),
       };
+      adultoEnviado = foto.adultoCodigo;
 
       if (foto.total > 0) {
         this.montoEnProceso.set(foto.total);
@@ -1145,6 +1307,7 @@ export class ComprarComponent implements OnInit, OnDestroy {
         canjes: foto.canjes,
         pago,
         totalEsperado: foto.total,
+        adultoCodigo: foto.adultoCodigo,
       });
 
       this.vencimientoPendiente = false;
@@ -1189,6 +1352,10 @@ export class ComprarComponent implements OnInit, OnDestroy {
       }
 
       if (this.destruido) return;
+
+      if (adultoEnviado && RECHAZOS_ADULTO.some((rechazo) => mensaje.includes(rechazo))) {
+        this.verificacionAdulto.set({ codigo: adultoEnviado, ok: false, motivo: mensaje });
+      }
 
       if (incierta) {
         this.vencimientoPendiente = false;
@@ -1264,6 +1431,38 @@ export class ComprarComponent implements OnInit, OnDestroy {
     if (this.procesando() || !funcionIniciada(this.funcion()?.inicio)) return false;
     this.marcarComenzada();
     return true;
+  }
+
+  private async motivoSinAdulto(): Promise<string | null> {
+    if (!this.requiereAdulto()) return null;
+
+    switch (this.opcionAdulto()) {
+      case 'en-compra':
+        return this.faltaButacaAdulto() ? FALTA_BUTACA_ADULTO : null;
+      case 'con-codigo':
+        if (!FORMATO_CODIGO.test(this.codigoAdulto())) return CODIGO_ADULTO_INCOMPLETO;
+        await this.verificarAdulto(true);
+        if (this.adultoVerificado()) return null;
+        return this.verificacionAdulto()?.motivo || VERIFICAR_ADULTO;
+      default:
+        return ELEGIR_ADULTO;
+    }
+  }
+
+  private alCambiarCodigoAdulto(valor: string): void {
+    const limpio = normalizarCodigo(valor);
+
+    if (limpio !== valor) {
+      this.formulario.controls.codigoAdulto.setValue(limpio, { emitEvent: false });
+    }
+
+    this.codigoAdulto.set(limpio);
+
+    if (this.verificacionAdulto()?.codigo !== limpio) {
+      this.verificacionAdulto.set(null);
+    }
+
+    if (!this.procesando()) this.errorPago.set(null);
   }
 
   private async motivoSinBienvenida(): Promise<string | null> {
@@ -1690,31 +1889,12 @@ export class ComprarComponent implements OnInit, OnDestroy {
     const nacimiento = this.formulario.controls.fechaNacimiento;
 
     if (this.necesitaNacimiento()) {
-      nacimiento.setValidators([Validators.required]);
+      nacimiento.addValidators(Validators.required);
     } else {
-      nacimiento.clearValidators();
+      nacimiento.removeValidators(Validators.required);
     }
 
     nacimiento.updateValueAndValidity({ emitEvent: false });
-  }
-
-  private edadDelComprador(): number | null {
-    return this.auth.edad() ?? this.edadDesde(this.formulario.controls.fechaNacimiento.value);
-  }
-
-  private edadDesde(valor: string): number | null {
-    if (!valor) return null;
-
-    const partes = valor.slice(0, 10).split('-').map(Number);
-    if (partes.length !== 3 || partes.some((numero) => !Number.isFinite(numero))) return null;
-
-    const [anio, mes, dia] = partes;
-    const [anioHoy, mesHoy, diaHoy] = hoyLocal().split('-').map(Number);
-
-    let anios = anioHoy - anio;
-    if (mesHoy < mes || (mesHoy === mes && diaHoy < dia)) anios--;
-
-    return anios >= 0 ? anios : null;
   }
 
   private subirArriba(): void {

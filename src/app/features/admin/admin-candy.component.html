@@ -83,7 +83,7 @@
                 <article class="tarjeta-producto" [class.inactiva]="!producto.activo">
                   <div class="miniatura">
                     @if (producto.imagen_url) {
-                      <img [src]="producto.imagen_url" [alt]="producto.nombre" loading="lazy" />
+                      <img appImagenRespaldo [src]="producto.imagen_url" [alt]="producto.nombre" loading="lazy" />
                     } @else {
                       <span class="sin-imagen" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -114,7 +114,7 @@
 
                   <div class="acciones">
                     <button type="button" class="btn btn-secundario chico" (click)="editarProducto(producto)">Editar</button>
-                    <button type="button" class="btn btn-peligro chico" (click)="pedirBaja('productos', producto.id, producto.nombre)">Borrar</button>
+                    <button type="button" class="btn btn-peligro chico" (click)="pedirBaja('productos', producto.id, producto.nombre, producto.imagen_url)">Borrar</button>
                   </div>
                 </article>
               }
@@ -137,7 +137,7 @@
                 <article class="tarjeta-producto" [class.inactiva]="!combo.activo">
                   <div class="miniatura">
                     @if (combo.imagen_url) {
-                      <img [src]="combo.imagen_url" [alt]="combo.nombre" loading="lazy" />
+                      <img appImagenRespaldo [src]="combo.imagen_url" [alt]="combo.nombre" loading="lazy" />
                     } @else {
                       <span class="sin-imagen" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -167,7 +167,7 @@
 
                   <div class="acciones">
                     <button type="button" class="btn btn-secundario chico" (click)="editarCombo(combo)">Editar</button>
-                    <button type="button" class="btn btn-peligro chico" (click)="pedirBaja('combos', combo.id, combo.nombre)">Borrar</button>
+                    <button type="button" class="btn btn-peligro chico" (click)="pedirBaja('combos', combo.id, combo.nombre, combo.imagen_url)">Borrar</button>
                   </div>
                 </article>
               }
@@ -185,7 +185,7 @@
   <aside class="panel" role="dialog" aria-modal="true">
     <header class="panel-cabecera">
       <h2>{{ tituloPanel() }}</h2>
-      <button type="button" class="cerrar" aria-label="Cerrar" (click)="cerrarPanel()">
+      <button type="button" class="cerrar" aria-label="Cerrar" [disabled]="guardando()" (click)="cerrarPanel()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
@@ -206,9 +206,9 @@
           </div>
 
           <footer class="panel-pie">
-            <button type="button" class="btn btn-secundario" (click)="cerrarPanel()">Cancelar</button>
+            <button type="button" class="btn btn-secundario" [disabled]="guardando()" (click)="cerrarPanel()">Cancelar</button>
             <button type="submit" class="btn btn-primario" [disabled]="guardando()">
-              {{ guardando() ? 'Guardando...' : 'Guardar' }}
+              {{ textoGuardar() }}
             </button>
           </footer>
         </form>
@@ -251,9 +251,89 @@
               </select>
             </div>
 
-            <div class="campo">
-              <label for="producto-imagen">Url de imagen</label>
-              <input id="producto-imagen" type="url" formControlName="imagen_url" placeholder="https://..." autocomplete="off" />
+            <div class="imagen-campo">
+              <span class="rotulo">Imagen</span>
+              <label
+                class="zona"
+                appZonaArchivos
+                [tipoAceptado]="tiposImagen"
+                [maximoMb]="maximoMb"
+                [class.con-imagen]="vistaPrevia() !== '' || generada() !== ''"
+                [class.bloqueada]="guardando()"
+                (archivos)="soltarArchivos($event)"
+                (rechazo)="rechazarArchivo($event)">
+                <input
+                  class="oculto"
+                  type="file"
+                  [accept]="tiposImagen"
+                  aria-label="Elegir la imagen del producto"
+                  [disabled]="guardando()"
+                  (change)="elegirArchivo($event)" />
+
+                @if (vistaPrevia()) {
+                  <img appImagenRespaldo [src]="vistaPrevia()" alt="Vista previa de la imagen del producto" />
+                  <span class="zona-cambiar">Cambiar imagen</span>
+                } @else if (generada()) {
+                  <img [src]="generada()" alt="Vista previa de la imagen del producto generada automáticamente" />
+                  <span class="zona-sello">Automática</span>
+                  <span class="zona-cambiar">Subir una imagen</span>
+                } @else {
+                  <span class="zona-vacia">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" />
+                      <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+                    </svg>
+                    <strong>Arrastrá una imagen o tocá para elegirla</strong>
+                    <small>JPG, PNG o WEBP hasta {{ maximoMb }} MB</small>
+                  </span>
+                }
+
+                <span class="zona-soltar" aria-hidden="true">Soltá la imagen acá</span>
+              </label>
+
+              @if (vistaPrevia() === '') {
+                <small class="ayuda-automatica">
+                  Si no elegís ninguna, al guardar se usa una imagen generada automáticamente. Subí una (JPG, PNG o WEBP hasta {{ maximoMb }} MB) o pegá una URL para reemplazarla.
+                </small>
+              } @else if (automaticaGuardada()) {
+                <small class="ayuda-automatica">
+                  Es una imagen automática: si cambiás el nombre o la categoría, se vuelve a generar al guardar.
+                </small>
+              }
+
+              @if (archivo(); as elegido) {
+                <div class="archivo">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+                    <path d="M3 15l5-4 4 3 3-2 6 5" />
+                    <circle cx="9" cy="9" r="1.4" />
+                  </svg>
+                  <span class="archivo-nombre" [title]="elegido.name">{{ elegido.name }}</span>
+                  <span class="archivo-peso">{{ peso(elegido) }}</span>
+                  <button type="button" class="btn btn-fantasma quitar" [disabled]="guardando()" (click)="quitarArchivo()">
+                    Quitar
+                  </button>
+                </div>
+              }
+
+              @if (errorImagen()) {
+                <span class="error-campo error-imagen" role="alert">{{ errorImagen() }}</span>
+              }
+
+              <div class="campo campo-url">
+                <label for="producto-imagen">O pegá una URL</label>
+                <input
+                  #campoProductoImagen
+                  id="producto-imagen"
+                  type="url"
+                  formControlName="imagen_url"
+                  placeholder="https://..."
+                  autocomplete="off"
+                  (input)="escribirUrl(campoProductoImagen.value)" />
+                @if (archivo()) {
+                  <small class="ayuda">Se va a usar el archivo elegido. Si escribís una URL, se descarta.</small>
+                }
+              </div>
             </div>
 
             <label class="check">
@@ -266,9 +346,9 @@
           </div>
 
           <footer class="panel-pie">
-            <button type="button" class="btn btn-secundario" (click)="cerrarPanel()">Cancelar</button>
+            <button type="button" class="btn btn-secundario" [disabled]="guardando()" (click)="cerrarPanel()">Cancelar</button>
             <button type="submit" class="btn btn-primario" [disabled]="guardando()">
-              {{ guardando() ? 'Guardando...' : 'Guardar' }}
+              {{ textoGuardar() }}
             </button>
           </footer>
         </form>
@@ -317,9 +397,89 @@
               }
             </div>
 
-            <div class="campo">
-              <label for="combo-imagen">Url de imagen</label>
-              <input id="combo-imagen" type="url" formControlName="imagen_url" placeholder="https://..." autocomplete="off" />
+            <div class="imagen-campo">
+              <span class="rotulo">Imagen</span>
+              <label
+                class="zona"
+                appZonaArchivos
+                [tipoAceptado]="tiposImagen"
+                [maximoMb]="maximoMb"
+                [class.con-imagen]="vistaPrevia() !== '' || generada() !== ''"
+                [class.bloqueada]="guardando()"
+                (archivos)="soltarArchivos($event)"
+                (rechazo)="rechazarArchivo($event)">
+                <input
+                  class="oculto"
+                  type="file"
+                  [accept]="tiposImagen"
+                  aria-label="Elegir la imagen del combo"
+                  [disabled]="guardando()"
+                  (change)="elegirArchivo($event)" />
+
+                @if (vistaPrevia()) {
+                  <img appImagenRespaldo [src]="vistaPrevia()" alt="Vista previa de la imagen del combo" />
+                  <span class="zona-cambiar">Cambiar imagen</span>
+                } @else if (generada()) {
+                  <img [src]="generada()" alt="Vista previa de la imagen del combo generada automáticamente" />
+                  <span class="zona-sello">Automática</span>
+                  <span class="zona-cambiar">Subir una imagen</span>
+                } @else {
+                  <span class="zona-vacia">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" />
+                      <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+                    </svg>
+                    <strong>Arrastrá una imagen o tocá para elegirla</strong>
+                    <small>JPG, PNG o WEBP hasta {{ maximoMb }} MB</small>
+                  </span>
+                }
+
+                <span class="zona-soltar" aria-hidden="true">Soltá la imagen acá</span>
+              </label>
+
+              @if (vistaPrevia() === '') {
+                <small class="ayuda-automatica">
+                  Si no elegís ninguna, al guardar se usa una imagen generada automáticamente. Subí una (JPG, PNG o WEBP hasta {{ maximoMb }} MB) o pegá una URL para reemplazarla.
+                </small>
+              } @else if (automaticaGuardada()) {
+                <small class="ayuda-automatica">
+                  Es una imagen automática: si cambiás el nombre, se vuelve a generar al guardar.
+                </small>
+              }
+
+              @if (archivo(); as elegido) {
+                <div class="archivo">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+                    <path d="M3 15l5-4 4 3 3-2 6 5" />
+                    <circle cx="9" cy="9" r="1.4" />
+                  </svg>
+                  <span class="archivo-nombre" [title]="elegido.name">{{ elegido.name }}</span>
+                  <span class="archivo-peso">{{ peso(elegido) }}</span>
+                  <button type="button" class="btn btn-fantasma quitar" [disabled]="guardando()" (click)="quitarArchivo()">
+                    Quitar
+                  </button>
+                </div>
+              }
+
+              @if (errorImagen()) {
+                <span class="error-campo error-imagen" role="alert">{{ errorImagen() }}</span>
+              }
+
+              <div class="campo campo-url">
+                <label for="combo-imagen">O pegá una URL</label>
+                <input
+                  #campoComboImagen
+                  id="combo-imagen"
+                  type="url"
+                  formControlName="imagen_url"
+                  placeholder="https://..."
+                  autocomplete="off"
+                  (input)="escribirUrl(campoComboImagen.value)" />
+                @if (archivo()) {
+                  <small class="ayuda">Se va a usar el archivo elegido. Si escribís una URL, se descarta.</small>
+                }
+              </div>
             </div>
 
             <label class="check">
@@ -332,9 +492,9 @@
           </div>
 
           <footer class="panel-pie">
-            <button type="button" class="btn btn-secundario" (click)="cerrarPanel()">Cancelar</button>
+            <button type="button" class="btn btn-secundario" [disabled]="guardando()" (click)="cerrarPanel()">Cancelar</button>
             <button type="submit" class="btn btn-primario" [disabled]="guardando()">
-              {{ guardando() ? 'Guardando...' : 'Guardar' }}
+              {{ textoGuardar() }}
             </button>
           </footer>
         </form>

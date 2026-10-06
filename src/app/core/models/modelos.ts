@@ -143,6 +143,9 @@ export interface Compra {
   tarjeta_ultimos4: string | null;
   descuento_canjes: number;
   descuento_combos?: number;
+  requiere_adulto?: boolean;
+  adulto_codigo?: string | null;
+  comprador_mayor?: boolean | null;
   creado_en: string;
   funcion?: Funcion;
 }
@@ -267,6 +270,8 @@ export type RespuestaCancelacionInvitado =
   | { ok: true; credito: number }
   | { ok: false; motivo: string; restantes?: number; vencido?: boolean };
 
+export type EstadoCompraAdulto = 'vigente' | 'cancelada';
+
 export interface ResultadoValidacion {
   ok: boolean;
   motivo?: string;
@@ -276,6 +281,17 @@ export interface ResultadoValidacion {
   sala?: string;
   butacas?: string[];
   items?: { nombre: string; cantidad: number }[];
+  restriccion_edad?: number;
+  requiere_adulto?: boolean;
+  adulto_codigo?: string | null;
+  adulto_estado?: EstadoCompraAdulto | null;
+  adulto_entrada_validada?: boolean | null;
+  requiere_confirmacion?: boolean;
+}
+
+export interface VerificacionAdulto {
+  ok: boolean;
+  motivo: string;
 }
 
 export interface PeliculaVendida {

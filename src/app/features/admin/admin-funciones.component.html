@@ -30,22 +30,24 @@
 
     <div class="campo">
       <label for="filtro-desde">Desde</label>
-      <app-selector-fecha
+      <app-campo-fecha
         id="filtro-desde"
         etiqueta="Desde"
-        textoVacio="Cualquier día"
-        [maximo]="filtroHasta()"
+        ayuda="Vacío = cualquier día"
+        borrable
+        [atajos]="atajosDesde"
         [valor]="filtroDesde()"
         (valorChange)="cambiarDesde($event)" />
     </div>
 
     <div class="campo">
       <label for="filtro-hasta">Hasta</label>
-      <app-selector-fecha
+      <app-campo-fecha
         id="filtro-hasta"
         etiqueta="Hasta"
-        textoVacio="Cualquier día"
-        [minimo]="filtroDesde()"
+        ayuda="Vacío = cualquier día"
+        borrable
+        [atajos]="atajosHasta"
         [valor]="filtroHasta()"
         (valorChange)="cambiarHasta($event)" />
     </div>
@@ -248,9 +250,9 @@
                     <span>{{ motivoHorarioBloqueado() }}</span>
                   </div>
                 } @else {
-                  <app-selector-fecha-hora
+                  <app-campo-fecha-hora
                     etiqueta="Fecha y hora de la función"
-                    [minimo]="minimoFecha"
+                    [minimo]="minimoFecha()"
                     [valor]="inicio()"
                     (valorChange)="cambiarInicio($event)" />
                 }
@@ -265,6 +267,7 @@
                       type="button"
                       class="dia-boton"
                       [class.activo]="tieneDia(dia.valor)"
+                      [attr.aria-pressed]="tieneDia(dia.valor)"
                       (click)="alternarDia(dia.valor)">
                       {{ dia.etiqueta }}
                     </button>
@@ -274,39 +277,13 @@
               </div>
 
               <div class="bloque">
-                <span class="rotulo">Horario de la serie</span>
-                <div class="reloj">
-                  <div class="reloj-bloque">
-                    <span class="sub">Hora</span>
-                    <div class="grilla-horas">
-                      @for (hora of horas; track hora) {
-                        <button
-                          type="button"
-                          class="ficha"
-                          [class.activa]="hora === horaElegida()"
-                          (click)="elegirHora(hora)">
-                          {{ dosDigitos(hora) }}
-                        </button>
-                      }
-                    </div>
-                  </div>
-
-                  <div class="reloj-bloque">
-                    <span class="sub">Minutos</span>
-                    <div class="grilla-minutos">
-                      @for (minuto of minutos; track minuto) {
-                        <button
-                          type="button"
-                          class="ficha"
-                          [class.activa]="minuto === minutoElegido()"
-                          (click)="elegirMinuto(minuto)">
-                          {{ dosDigitos(minuto) }}
-                        </button>
-                      }
-                    </div>
-                  </div>
-                </div>
-                <p class="elegido">Todas las funciones arrancan a las <strong>{{ horaSerie() }} h</strong></p>
+                <label class="rotulo" for="hora-serie">Horario de la serie</label>
+                <app-campo-hora
+                  id="hora-serie"
+                  etiqueta="Horario de la serie"
+                  [sugeridos]="horariosSugeridos"
+                  [valor]="horaSerie()"
+                  (valorChange)="cambiarHoraSerie($event)" />
               </div>
 
               <div class="bloque">
@@ -322,7 +299,30 @@
                     </button>
                   }
                 </div>
-                <span class="ayuda">Se repite la grilla durante {{ semanas() }} semanas desde esta semana.</span>
+                <span class="ayuda">
+                  Se repite durante {{ semanas() }} {{ semanas() === 1 ? 'semana' : 'semanas' }}, contando
+                  desde esta semana (de lunes a domingo). Los días que ya pasaron no se crean.
+                </span>
+              </div>
+
+              <div class="bloque">
+                <span class="rotulo">Vista previa</span>
+                <div class="previa">
+                  <p class="previa-titulo" aria-live="polite">
+                    @if (previaSerie().length > 0) {
+                      Se van a crear <strong>{{ cantidadPrevia() }}</strong>:
+                    } @else {
+                      {{ motivoSinPrevia() }}
+                    }
+                  </p>
+                  @if (previaSerie().length > 0) {
+                    <ul class="previa-lista">
+                      @for (funcion of previaSerie(); track funcion.inicio) {
+                        <li>{{ funcion.etiqueta }}</li>
+                      }
+                    </ul>
+                  }
+                </div>
               </div>
             }
           }

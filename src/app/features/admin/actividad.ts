@@ -101,7 +101,7 @@ export function resumenActividad(fila: LogActividad): string {
     case 'cambiar_rol':
       return `${texto(datos['email'])}: ${rol(datos['rol_anterior'])} → ${rol(datos['rol_nuevo'])}`;
     case 'validar_qr':
-      return `${datos['tipo'] === 'candy' ? 'Candy bar' : 'Entrada'} · código ${texto(datos['codigo'])}`;
+      return resumenValidacion(datos);
     case 'cancelar':
       return `Compra ${texto(datos['codigo'])}`;
     case 'modificar':
@@ -110,6 +110,12 @@ export function resumenActividad(fila: LogActividad): string {
     default:
       return nombreDe(fila.entidad, datos);
   }
+}
+
+function resumenValidacion(datos: Datos): string {
+  const tipo = datos['tipo'] === 'candy' ? 'Candy bar' : 'Entrada';
+  const adulto = datos['adulto_presente'] === true ? ' · con adulto verificado' : '';
+  return `${tipo} · código ${texto(datos['codigo'])}${adulto}`;
 }
 
 function resumenPrecio(entidad: string, datos: Datos): string {

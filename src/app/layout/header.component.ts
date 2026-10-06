@@ -6,10 +6,11 @@ import { filter, map } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
 import { CarritoService } from '../core/services/carrito.service';
 import { NotificacionesService } from '../core/services/notificaciones.service';
+import { SiRolDirective } from '../shared/directives/si-rol.directive';
 
 @Component({
   selector: 'app-header',
-  imports: [RouterLink, RouterLinkActive, ReactiveFormsModule],
+  imports: [RouterLink, RouterLinkActive, ReactiveFormsModule, SiRolDirective],
   templateUrl: './header.component.html',
   styleUrl: './header.component.scss',
 })

@@ -167,7 +167,8 @@
       <section
         class="resultado anim-escalar"
         [class.valido]="salida.ok"
-        [class.rechazado]="!salida.ok"
+        [class.confirmar]="pideConfirmacion()"
+        [class.rechazado]="!salida.ok && !pideConfirmacion()"
         role="status"
         aria-live="assertive"
       >
@@ -175,6 +176,13 @@
           @if (salida.ok) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="m4 12.6 5.3 5.4L20 6.6" />
+            </svg>
+          } @else if (pideConfirmacion()) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="7" r="3" />
+              <path d="M2.5 20v-1.5a5.5 5.5 0 0 1 11 0V20" />
+              <circle cx="17" cy="9.5" r="2.2" />
+              <path d="M15.5 14.4a4.2 4.2 0 0 1 6 3.8V20" />
             </svg>
           } @else {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
@@ -190,7 +198,25 @@
           <p class="codigo-resultado">{{ codigoResultado() }}</p>
         }
 
-        @if (salida.ok) {
+        @if (chipRestriccion() || esMenor()) {
+          <div class="marcas">
+            @if (chipRestriccion(); as chip) {
+              <span class="marca-edad" [class.restringida]="(restriccionResultado() ?? 0) > 0">{{ chip }}</span>
+            }
+            @if (esMenor()) {
+              <span class="marca-menor">Menor</span>
+            }
+          </div>
+          @if (avisoEdadResultado()) {
+            <p class="nota-edad">{{ avisoEdadResultado() }}</p>
+          }
+        }
+
+        @if (pideConfirmacion()) {
+          <p class="motivo">{{ motivoResultado() }}</p>
+        }
+
+        @if (salida.ok || pideConfirmacion()) {
           <dl class="detalle">
             @if (salida.pelicula) {
               <div class="fila">
@@ -222,11 +248,49 @@
             }
           </dl>
 
+          @if (esMenor()) {
+            <div class="bloque-menor" role="note">
+              <p class="titulo-menor">MENOR: ingresa con un adulto</p>
+              @if (salida.adulto_codigo; as adulto) {
+                <dl class="datos-adulto">
+                  <div class="fila">
+                    <dt>Compra del adulto</dt>
+                    <dd class="codigo-adulto">{{ adulto }}</dd>
+                  </div>
+                  <div class="fila">
+                    <dt>Estado</dt>
+                    <dd
+                      [class.bien]="salida.adulto_estado === 'vigente'"
+                      [class.mal]="salida.adulto_estado === 'cancelada'"
+                    >{{ estadoCompraAdulto() }}</dd>
+                  </div>
+                  <div class="fila">
+                    <dt>Entrada del adulto</dt>
+                    <dd
+                      [class.bien]="salida.adulto_entrada_validada === true"
+                      [class.alerta]="salida.adulto_entrada_validada === false"
+                    >{{ ingresoAdulto() }}</dd>
+                  </div>
+                </dl>
+                @if (salida.adulto_estado === 'cancelada') {
+                  <p class="alerta-adulto">
+                    La compra del adulto está cancelada: el menor tiene que entrar con un adulto que
+                    tenga una entrada vigente para esta función.
+                  </p>
+                }
+              } @else {
+                <p class="texto-menor">
+                  El adulto está en esta misma compra: tiene que ingresar junto con el menor.
+                </p>
+              }
+            </div>
+          }
+
           @if (avisoCandy()) {
             <p class="aviso-fecha" role="note">{{ avisoCandy() }}</p>
           }
 
-          @if (productos().length) {
+          @if (productos().length && !pideConfirmacion()) {
             <div class="productos">
               <p class="rotulo-productos">Productos</p>
               <ul>
@@ -246,7 +310,18 @@
           }
         }
 
-        <button type="button" class="accion otro" (click)="validarOtro()">Validar otro</button>
+        @if (pideConfirmacion()) {
+          <div class="acciones-adulto">
+            <button type="button" class="accion iniciar" [disabled]="validando()" (click)="confirmarAdulto()">
+              El adulto está presente: validar ingreso
+            </button>
+            <button type="button" class="accion detener" [disabled]="validando()" (click)="rechazarIngreso()">
+              No vino con un adulto: rechazar y validar otro
+            </button>
+          </div>
+        } @else {
+          <button type="button" class="accion otro" (click)="validarOtro()">Validar otro</button>
+        }
       </section>
     }
 

@@ -11,6 +11,7 @@
           "/favicon.ico",
           "/index.html",
           "/manifest.webmanifest",
+          "/sin-imagen.svg",
           "/*.css",
           "/*.js"
         ]
@@ -43,6 +44,19 @@
         "maxSize": 120,
         "maxAge": "1h",
         "timeout": "3s"
+      }
+    },
+    {
+      "name": "imagenes",
+      "urls": [
+        "https://dubpaswolnuvfczqrzny.supabase.co/storage/v1/object/public/imagenes/**"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 120,
+        "maxAge": "30d",
+        "timeout": "5s",
+        "cacheOpaqueResponses": true
       }
     }
   ],

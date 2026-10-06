@@ -157,8 +157,10 @@
 .leyenda {
   display: inline-flex;
   align-items: center;
+  max-width: 68ch;
   margin: 0 0 16px;
   padding: 8px 14px;
+  line-height: 1.45;
   background: rgb(240 82 79 / .1);
   border: 1px solid rgb(240 82 79 / .28);
   border-radius: var(--r-md);

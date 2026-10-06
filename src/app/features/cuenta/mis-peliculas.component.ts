@@ -12,6 +12,7 @@ import { MiPelicula } from '../../core/models/modelos';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { EstrellasComponent } from '../../shared/components/estrellas.component';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
 
 @Component({
   selector: 'app-mis-peliculas',
@@ -22,6 +23,7 @@ import { EstrellasComponent } from '../../shared/components/estrellas.component'
     CargandoComponent,
     VacioComponent,
     EstrellasComponent,
+    ImagenRespaldoDirective,
   ],
   templateUrl: './mis-peliculas.component.html',
   styleUrl: './mis-peliculas.component.scss',

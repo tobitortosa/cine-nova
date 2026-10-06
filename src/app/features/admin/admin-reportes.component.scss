@@ -25,7 +25,7 @@
 
 .rango {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 14px;
 
@@ -38,7 +38,8 @@
 
 .generar {
   flex: 0 0 auto;
-  height: 44px;
+  height: 48px;
+  margin-top: calc(0.8rem * 1.6 + 6px);
 }
 
 .atajos {
@@ -493,6 +494,7 @@
 
   .generar {
     width: 100%;
+    margin-top: 0;
   }
 
   .exportaciones .btn {

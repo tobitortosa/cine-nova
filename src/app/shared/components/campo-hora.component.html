@@ -1,0 +1,68 @@
+<div class="campo-tipeado" (focusin)="alEntrar()" (focusout)="alSalirDelGrupo($event)">
+  <div
+    class="caja"
+    role="group"
+    [attr.aria-label]="etiqueta()"
+    [class.con-error]="mostrarError()"
+    [class.deshabilitada]="deshabilitado()"
+    (click)="alClickearCaja($event)">
+    <input
+      #campoHora
+      appSoloDigitos
+      type="text"
+      class="segmento"
+      maxlength="2"
+      placeholder="HH"
+      aria-label="Hora"
+      autocomplete="off"
+      [attr.id]="id() || null"
+      [attr.aria-describedby]="prefijo + '-detalle'"
+      [attr.aria-invalid]="mostrarError()"
+      [value]="hora()"
+      [disabled]="deshabilitado()"
+      (input)="alEscribir('hora', $event)"
+      (keydown)="alTeclear('hora', $event)"
+      (click)="seleccionar($event)"
+      (paste)="alPegar($event)"
+      (blur)="alSalirDeParte('hora')" />
+    <span class="separador" aria-hidden="true">:</span>
+    <input
+      #campoMinutos
+      appSoloDigitos
+      type="text"
+      class="segmento"
+      maxlength="2"
+      placeholder="MM"
+      aria-label="Minutos"
+      autocomplete="off"
+      [attr.aria-describedby]="prefijo + '-detalle'"
+      [attr.aria-invalid]="mostrarError()"
+      [value]="minutos()"
+      [disabled]="deshabilitado()"
+      (input)="alEscribir('minutos', $event)"
+      (keydown)="alTeclear('minutos', $event)"
+      (click)="seleccionar($event)"
+      (paste)="alPegar($event)"
+      (blur)="alSalirDeParte('minutos')" />
+    <span class="sufijo" aria-hidden="true">h</span>
+  </div>
+
+  <p class="detalle error" aria-live="polite" [id]="prefijo + '-detalle'">{{ mostrarError() ? estado().error : '' }}</p>
+
+  @if (opcionesSugeridas().length > 0 && !deshabilitado()) {
+    <div class="atajos" role="group" aria-label="Horarios sugeridos">
+      @for (opcion of opcionesSugeridas(); track opcion.texto) {
+        <button
+          type="button"
+          class="atajo"
+          [class.activo]="opcion.texto === estado().texto"
+          [attr.aria-pressed]="opcion.texto === estado().texto"
+          [attr.aria-label]="'A las ' + opcion.texto"
+          [disabled]="opcion.deshabilitado"
+          (click)="elegirSugerido(opcion.texto)">
+          {{ opcion.texto }}
+        </button>
+      }
+    </div>
+  }
+</div>

@@ -9,6 +9,7 @@ import { RestriccionPipe } from '../../shared/pipes/restriccion.pipe';
 import { PrecioPipe } from '../../shared/pipes/precio.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
+import { ImagenRespaldoDirective } from '../../shared/directives/imagen-respaldo.directive';
 import { diasHasta, preventaVigente, ventaAbierta } from '../../shared/utils/ventas';
 
 @Component({
@@ -20,6 +21,7 @@ import { diasHasta, preventaVigente, ventaAbierta } from '../../shared/utils/ven
     PrecioPipe,
     CargandoComponent,
     VacioComponent,
+    ImagenRespaldoDirective,
   ],
   templateUrl: './proximamente.component.html',
   styleUrl: './proximamente.component.scss',

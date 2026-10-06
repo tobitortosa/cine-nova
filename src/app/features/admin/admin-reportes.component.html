@@ -9,20 +9,18 @@
   <div class="rango">
     <div class="campo">
       <label for="desde">Desde</label>
-      <app-selector-fecha
+      <app-campo-fecha
         id="desde"
         etiqueta="Desde"
-        formControlName="desde"
-        [maximo]="formulario.controls.hasta.value" />
+        formControlName="desde" />
     </div>
 
     <div class="campo">
       <label for="hasta">Hasta</label>
-      <app-selector-fecha
+      <app-campo-fecha
         id="hasta"
         etiqueta="Hasta"
-        formControlName="hasta"
-        [minimo]="formulario.controls.desde.value" />
+        formControlName="hasta" />
     </div>
 
     <button class="btn btn-primario generar" type="submit" [disabled]="generando()">
@@ -48,7 +46,7 @@
 @if (generando()) {
   <app-cargando texto="Generando el reporte..." />
 } @else if (!generado()) {
-  <app-vacio titulo="Elegí un período" texto="Seleccioná un rango de fechas y tocá Generar para ver la facturación." />
+  <app-vacio titulo="Elegí un período" texto="Escribí las fechas o usá un atajo, y tocá Generar para ver la facturación." />
 } @else {
   <section class="totales">
     <article class="total">

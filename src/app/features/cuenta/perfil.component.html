@@ -85,7 +85,7 @@
 
         <div class="campo ancho">
           <label for="fecha_nacimiento">Fecha de nacimiento</label>
-          <app-selector-fecha
+          <app-campo-fecha
             id="fecha_nacimiento"
             modo="nacimiento"
             etiqueta="Fecha de nacimiento"
@@ -98,7 +98,7 @@
             </span>
           } @else if (formulario.controls.fecha_nacimiento.touched && formulario.controls.fecha_nacimiento.hasError('futura')) {
             <span class="error-campo">La fecha de nacimiento no puede ser futura.</span>
-          } @else if (formulario.controls.fecha_nacimiento.touched && formulario.controls.fecha_nacimiento.invalid) {
+          } @else if (formulario.controls.fecha_nacimiento.touched && formulario.controls.fecha_nacimiento.hasError('required') && !formulario.controls.fecha_nacimiento.hasError('fechaInvalida')) {
             <span class="error-campo">Indicá tu fecha de nacimiento.</span>
           } @else {
             <span class="ayuda">Revisala bien: una vez guardada no se puede cambiar.</span>

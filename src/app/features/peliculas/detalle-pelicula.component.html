@@ -23,7 +23,7 @@
           <div class="presentacion">
             <div class="afiche anim-escalar">
               @if (peli.imagen_url) {
-                <img [src]="peli.imagen_url" [alt]="'Afiche de ' + peli.titulo" />
+                <img appImagenRespaldo [src]="peli.imagen_url" [alt]="'Afiche de ' + peli.titulo" />
               } @else {
                 <span class="sin-afiche" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
@@ -58,7 +58,7 @@
                   {{ peli.duracion_min | duracion }}
                 </span>
 
-                <span class="dato edad" [class.restringida]="peli.restriccion_edad > 0">
+                <span class="dato edad" [class.restringida]="peli.restriccion_edad > 0" [title]="edadMinima()">
                   {{ peli.restriccion_edad | restriccion }}
                 </span>
 
@@ -76,9 +76,7 @@
               </div>
 
               @if (peli.restriccion_edad > 0) {
-                <p class="leyenda">
-                  Menores de {{ peli.restriccion_edad }} años deben ingresar con un adulto.
-                </p>
+                <p class="leyenda">{{ avisoEdad() }}</p>
               }
 
               <p class="sinopsis">{{ peli.sinopsis }}</p>

@@ -43,6 +43,9 @@
               <span class="chip" [class.chip-peligro]="restriccion() > 0">
                 {{ restriccion() | restriccion }}
               </span>
+              @if (esMenor()) {
+                <span class="chip chip-peligro">Menor</span>
+              }
             </div>
           </section>
 
@@ -217,9 +220,15 @@
           @if (restriccion() > 0) {
             <aside class="restriccion">
               <span class="restriccion-marca">{{ restriccion() | restriccion }}</span>
+              <p>{{ avisoEdad() }}</p>
+            </aside>
+          }
+
+          @if (esMenor()) {
+            <aside class="restriccion menor">
+              <span class="menor-marca">Menor</span>
               <p>
-                Película con restricción de edad: los menores deben ingresar acompañados por
-                un adulto. Te pueden pedir el documento en la puerta de la sala.
+                {{ avisoMenor() }}. En la puerta el personal confirma que el adulto está con vos.
               </p>
             </aside>
           }

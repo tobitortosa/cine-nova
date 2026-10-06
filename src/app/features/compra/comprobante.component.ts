@@ -22,6 +22,7 @@ import { MedioPagoPipe } from '../../shared/pipes/medio-pago.pipe';
 import { CargandoComponent } from '../../shared/components/cargando.component';
 import { VacioComponent } from '../../shared/components/vacio.component';
 import { ZONA_HORARIA } from '../../shared/utils/ventas';
+import { avisoCompraMenor, avisoRestriccion } from '../../shared/utils/restriccion';
 import { CancelarInvitadoComponent } from './cancelar-invitado.component';
 
 type IconoPago = 'tarjeta' | 'billetera' | 'regalo' | 'desconocido';
@@ -98,6 +99,12 @@ export class ComprobanteComponent implements OnInit {
   readonly agotada = computed(() => this.utilizada() && !this.candyPendiente());
   readonly atenuada = computed(() => this.cancelada() || this.agotada());
   readonly restriccion = computed(() => this.resumen()?.pelicula?.restriccion_edad ?? 0);
+  readonly avisoEdad = computed(() => avisoRestriccion(this.restriccion()));
+  readonly esMenor = computed(() => this.resumen()?.compra.requiere_adulto === true);
+  readonly avisoMenor = computed(() => {
+    const compra = this.resumen()?.compra;
+    return avisoCompraMenor(compra?.requiere_adulto, compra?.adulto_codigo);
+  });
   readonly descuentoCombos = computed(() => Number(this.resumen()?.compra.descuento_combos ?? 0));
   readonly email = computed(() => this.resumen()?.compra.email_contacto ?? '');
 
