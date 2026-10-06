@@ -17,6 +17,7 @@ interface ErrorDeAlmacenamiento {
 const BUCKET = 'imagenes';
 const MAXIMO_BYTES = MAXIMO_MB_IMAGEN * 1024 * 1024;
 const UN_ANIO_EN_SEGUNDOS = '31536000';
+const ESPERAS_REINTENTO_MS: readonly number[] = [700, 1800];
 const CARPETAS: readonly CarpetaImagen[] = ['posters', 'banners', 'productos', 'combos'];
 const EXTENSIONES: Readonly<Record<string, string>> = {
   'image/jpeg': 'jpg',
@@ -54,16 +55,23 @@ export class ImagenesService {
     const ruta = `${carpeta}/${prefijo}${crypto.randomUUID()}.${EXTENSIONES[archivo.type]}`;
     const almacen = this.supabase.client.storage.from(BUCKET);
 
-    const { error } = await almacen.upload(ruta, archivo, {
-      cacheControl: UN_ANIO_EN_SEGUNDOS,
-      upsert: false,
-    });
+    for (let intento = 0; ; intento++) {
+      const { error } = await almacen.upload(ruta, archivo, {
+        cacheControl: UN_ANIO_EN_SEGUNDOS,
+        upsert: false,
+      });
 
-    if (error) {
-      throw new Error(this.mensajeDeSubida(error));
+      if (!error || (intento > 0 && this.yaExiste(error))) {
+        return almacen.getPublicUrl(ruta).data.publicUrl;
+      }
+
+      const espera = ESPERAS_REINTENTO_MS[intento];
+      if (espera === undefined || !this.esPasajero(error)) {
+        throw new Error(this.mensajeDeSubida(error));
+      }
+
+      await new Promise((resolver) => setTimeout(resolver, espera));
     }
-
-    return almacen.getPublicUrl(ruta).data.publicUrl;
   }
 
   rutaPropia(url: string | null | undefined): string | null {
@@ -127,6 +135,16 @@ export class ImagenesService {
     } catch {
       return true;
     }
+  }
+
+  private esPasajero(error: ErrorDeAlmacenamiento): boolean {
+    const estado = Number(error.status ?? error.statusCode);
+    return !Number.isFinite(estado) || estado === 0 || estado === 429 || estado >= 500;
+  }
+
+  private yaExiste(error: ErrorDeAlmacenamiento): boolean {
+    const codigos = [String(error.status ?? ''), error.statusCode ?? ''];
+    return codigos.includes('409') || /already exists|duplicate/i.test(error.message ?? '');
   }
 
   private mensajeDeSubida(error: ErrorDeAlmacenamiento): string {
